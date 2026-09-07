@@ -15,6 +15,10 @@ dependencies = [
   "opencv-python-headless>=4.11,<5",
 ]
 
+[project.optional-dependencies]
+training = ["onnx>=1.17,<2"]
+runtime = ["onnxruntime>=1.20,<2"]
+
 [project.scripts]
 qlyraxis = "qlyraxis.cli:main"
 

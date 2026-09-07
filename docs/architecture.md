@@ -52,8 +52,8 @@ estimator, and controller modules must not import simulator state.
 | `tracking` | Filtering, prediction, state machine | 4 |
 | `control` | PID and optional predictive control | 4 |
 | `disturbances` | Seeded noise, atmosphere, blur, jitter, motion, and dropout | 5 |
-| `sources` | Simulation, MP4, image sequence, camera input | 6 |
-| `ai` | Candidate classifier and ONNX inference | 6 |
+| `sources` | Simulation, MP4, and naturally sorted image sequences | 6 |
+| `ai` | Synthetic patches, tiny convolutional classifier, ONNX inference | 6 |
 | `metrics` | Live metrics and performance reports | 7 |
 | `ui` | PySide6 desktop application | 7 |
 

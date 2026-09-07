@@ -63,12 +63,13 @@ Exit criteria: every disturbance is independently selectable and reproducible.
 
 ## Phase 6 - MP4 input and AI verification
 
-Status: not started
+Status: complete
 
-- [ ] MP4/image-sequence `FrameSource`
-- [ ] Synthetic candidate-patch dataset
-- [ ] Tiny CNN candidate verifier
-- [ ] ONNX CPU inference
+- [x] MP4/image-sequence `FrameSource`
+- [x] Deterministic synthetic candidate-patch dataset
+- [x] Tiny convolutional candidate verifier and training command
+- [x] ONNX export and CPU inference through OpenCV/ONNX Runtime
+- [x] Ground-truth-free recorded-media analysis command
 
 Exit criteria: process an unseen MP4 without simulator state or ground truth.
 

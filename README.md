@@ -8,13 +8,18 @@ performance reports.
 
 ## Current status
 
-Phases 1 through 5 are complete. The repository contains configuration
+Phases 1 through 6 are complete. The repository contains configuration
 validation, a deterministic virtual environment, image-only beacon acquisition,
 Kalman motion estimation, a complete tracking state machine, bounded PID pan-tilt
 control, local/global re-acquisition, and a deterministic disturbance pipeline.
 The pipeline supports Gaussian, Poisson, and salt-and-pepper noise; haze, fog,
 rain, and low light; defocus and motion blur; camera jitter; platform motion;
 atmospheric turbulence; and timed beacon dropout.
+
+Recorded MP4 files and naturally sorted image sequences now use the same frame
+contract as the simulator. A compact candidate verifier is trained on synthetic
+patches, exported to ONNX, and executed on the CPU through OpenCV or optional
+ONNX Runtime.
 
 ## Quick start
 
@@ -29,6 +34,8 @@ qlyraxis detect configs/scenarios/clear_straight.json --frames 60
 qlyraxis track configs/scenarios/clear_straight.json --frames 300
 qlyraxis track configs/scenarios/fog_figure_eight.json --frames 300
 qlyraxis track configs/scenarios/reacquisition_dropout.json --frames 660
+qlyraxis record configs/scenarios/fog_figure_eight.json work/fog.mp4 --frames 240
+qlyraxis analyze work/fog.mp4 --model models/beacon_verifier.onnx
 python -m unittest discover -s tests -v
 ```
 
@@ -43,7 +50,8 @@ PYTHONPATH=src python -m qlyraxis validate configs/scenarios/clear_straight.json
 ```text
 configs/scenarios/       Reproducible SIH benchmark scenarios
 docs/                    Architecture, project plan, and UI wireframe
-src/qlyraxis/            Simulator, vision, tracking, control, and disturbances
+models/                  Portable ONNX verifier and reproducible NumPy weights
+src/qlyraxis/            Simulator, sources, AI, vision, tracking, and control
 tests/                   Unit and closed-loop integration tests
 ```
 
@@ -56,4 +64,5 @@ tests/                   Unit and closed-loop integration tests
 4. Control commands respect pan, tilt, acceleration, and update-rate limits.
 5. Performance claims must be generated automatically from recorded runs.
 
-See `docs/architecture.md` and `docs/project-plan.md` for the agreed design.
+See `docs/architecture.md`, `docs/project-plan.md`, and
+`docs/phase6-testing.md` for the design and local testing workflow.

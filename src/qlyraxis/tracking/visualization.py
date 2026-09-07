@@ -19,7 +19,7 @@ def annotate_tracking(
     estimate: TrackEstimate | None,
     state: TrackingState,
     search_scope: SearchScope,
-    command: CameraCommand,
+    command: CameraCommand | None,
 ) -> NDArray[np.uint8]:
     canvas = annotate_detections(image, detections)
     center = (canvas.shape[1] // 2, canvas.shape[0] // 2)
@@ -46,9 +46,17 @@ def annotate_tracking(
         1,
         cv2.LINE_AA,
     )
+    control_text = (
+        "RECORDED INPUT"
+        if command is None
+        else (
+            f"CMD pan {command.pan_rate_deg_s:+.2f}  "
+            f"tilt {command.tilt_rate_deg_s:+.2f} deg/s"
+        )
+    )
     cv2.putText(
         canvas,
-        f"CMD pan {command.pan_rate_deg_s:+.2f}  tilt {command.tilt_rate_deg_s:+.2f} deg/s",
+        control_text,
         (12, 46),
         cv2.FONT_HERSHEY_SIMPLEX,
         0.45,

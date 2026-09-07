@@ -39,11 +39,198 @@ def build_parser() -> argparse.ArgumentParser:
     track.add_argument("scenario", help="path to scenario JSON")
     track.add_argument("--frames", type=int, default=300)
     track.add_argument("--output-dir", default="work/phase4-tracking")
+    record = subparsers.add_parser(
+        "record", help="render a closed-loop scenario to an MP4 test video"
+    )
+    record.add_argument("scenario", help="path to scenario JSON")
+    record.add_argument("output", help="output MP4 path")
+    record.add_argument("--frames", type=int, default=300)
+    analyze = subparsers.add_parser(
+        "analyze", help="detect and track a beacon in an MP4 or image sequence"
+    )
+    analyze.add_argument("input", help="video file, image file, or image directory")
+    analyze.add_argument("--fps", type=float, default=30.0)
+    analyze.add_argument("--max-frames", type=int, default=0)
+    analyze.add_argument("--model", default="models/beacon_verifier.onnx")
+    analyze.add_argument("--no-ai", action="store_true")
+    analyze.add_argument("--output-dir", default="work/phase6-analysis")
+    train_ai = subparsers.add_parser(
+        "train-ai", help="train and export the tiny beacon verifier"
+    )
+    train_ai.add_argument("--samples-per-class", type=int, default=400)
+    train_ai.add_argument("--epochs", type=int, default=250)
+    train_ai.add_argument("--seed", type=int, default=26169)
+    train_ai.add_argument("--model", default="models/beacon_verifier.onnx")
+    train_ai.add_argument("--weights", default="models/beacon_verifier.npz")
+    train_ai.add_argument("--dataset-output")
     return parser
+
+
+def _train_ai(args: argparse.Namespace) -> int:
+    if args.samples_per_class <= 0 or args.epochs <= 0:
+        print("sample count and epochs must be positive", file=sys.stderr)
+        return 2
+    import numpy as np
+
+    from qlyraxis.ai import export_onnx, generate_synthetic_dataset, train_tiny_conv
+
+    training = generate_synthetic_dataset(args.samples_per_class, seed=args.seed)
+    validation = generate_synthetic_dataset(
+        max(100, args.samples_per_class // 4), seed=args.seed + 10_007
+    )
+    model, history = train_tiny_conv(training, epochs=args.epochs)
+    probabilities = model.predict_proba(validation.images)
+    accuracy = float(np.mean((probabilities >= 0.5) == validation.labels))
+    if args.dataset_output:
+        training.save(args.dataset_output)
+    model.weights.save(args.weights)
+    try:
+        model_path = export_onnx(model, args.model)
+    except RuntimeError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+    print(f"Training samples: {len(training.labels)}")
+    print(f"Final training loss: {history[-1]:.5f}")
+    print(f"Held-out synthetic accuracy: {accuracy * 100:.2f}%")
+    print(f"NumPy weights: {args.weights}")
+    print(f"ONNX model: {model_path}")
+    return 0
+
+
+def _analyze_recording(args: argparse.Namespace) -> int:
+    if args.fps <= 0 or args.max_frames < 0:
+        print("--fps must be positive and --max-frames cannot be negative", file=sys.stderr)
+        return 2
+    from time import perf_counter
+
+    import cv2
+
+    from qlyraxis.ai import OnnxCandidateVerifier, VerifiedBeaconDetector
+    from qlyraxis.contracts import TrackingState
+    from qlyraxis.recorded import RecordedTrackingSystem
+    from qlyraxis.sources import open_frame_source
+    from qlyraxis.tracking.visualization import annotate_tracking
+    from qlyraxis.vision import BeaconDetector
+
+    source = None
+    try:
+        source = open_frame_source(args.input, args.fps)
+        detector = BeaconDetector()
+        backend = "classical"
+        if not args.no_ai:
+            verifier = OnnxCandidateVerifier(args.model)
+            detector = VerifiedBeaconDetector(verifier, detector)
+            backend = f"AI/{verifier.backend}"
+    except (FileNotFoundError, ValueError, RuntimeError, cv2.error) as exc:
+        if source is not None:
+            source.close()
+        print(f"Input error: {exc}", file=sys.stderr)
+        return 2
+
+    system = RecordedTrackingSystem(detector)
+    processed = 0
+    detected_frames = 0
+    acquired_at = None
+    locked_frames = 0
+    post_acquisition_frames = 0
+    result = None
+    start = perf_counter()
+    try:
+        while args.max_frames == 0 or processed < args.max_frames:
+            frame = source.read()
+            if frame is None:
+                break
+            result = system.step(frame)
+            processed += 1
+            if result.detections:
+                detected_frames += 1
+            if result.state == TrackingState.TRACK and acquired_at is None:
+                acquired_at = frame.timestamp_s
+            if acquired_at is not None:
+                post_acquisition_frames += 1
+                if result.state in {TrackingState.TRACK, TrackingState.COAST}:
+                    locked_frames += 1
+    except (ValueError, cv2.error) as exc:
+        print(f"Processing error: {exc}", file=sys.stderr)
+        return 1
+    finally:
+        source.close()
+    elapsed = perf_counter() - start
+    if result is None:
+        print("Input contains no decodable frames", file=sys.stderr)
+        return 2
+
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    preview_path = output_dir / "recorded_tracking.png"
+    annotated = annotate_tracking(
+        result.frame.image,
+        result.detections,
+        result.estimate,
+        result.state,
+        result.search_scope,
+        None,
+    )
+    if not cv2.imwrite(str(preview_path), annotated):
+        print(f"could not write {preview_path}", file=sys.stderr)
+        return 1
+    retention = (
+        100.0 * locked_frames / post_acquisition_frames
+        if post_acquisition_frames
+        else 0.0
+    )
+    acquired_text = (
+        f"{acquired_at:.3f} s" if acquired_at is not None else "not acquired"
+    )
+    print(f"Inference backend: {backend}")
+    print(f"Processed frames: {processed}")
+    print(f"Frames with verified detections: {detected_frames}")
+    print(f"Acquisition time: {acquired_text}")
+    print(f"Final tracking state: {result.state}")
+    print(f"Lock retention: {retention:.2f}%")
+    print(f"Processing throughput: {processed / elapsed:.1f} FPS")
+    print(f"Diagnostic image: {preview_path}")
+    return 0
+
+
+def _record_scenario(args: argparse.Namespace, scenario) -> int:
+    if args.frames <= 0:
+        print("--frames must be positive", file=sys.stderr)
+        return 2
+    import cv2
+
+    from qlyraxis.tracking import ClosedLoopSystem
+
+    output = Path(args.output)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    width, height = (int(value) for value in scenario.camera["viewport_px"])
+    writer = cv2.VideoWriter(
+        str(output),
+        cv2.VideoWriter_fourcc(*"mp4v"),
+        float(scenario.camera["update_hz"]),
+        (width, height),
+        isColor=True,
+    )
+    if not writer.isOpened():
+        print(f"could not create MP4: {output}", file=sys.stderr)
+        return 1
+    system = ClosedLoopSystem.from_scenario(scenario)
+    try:
+        for _ in range(args.frames):
+            frame = system.step().simulation.frame.image
+            writer.write(cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR))
+    finally:
+        writer.release()
+    print(f"Recorded {args.frames} frames to {output}")
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if args.command == "train-ai":
+        return _train_ai(args)
+    if args.command == "analyze":
+        return _analyze_recording(args)
     try:
         scenario = load_scenario(args.scenario)
     except ConfigError as exc:
@@ -142,6 +329,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"First acquisition: {acquisition_text}")
         print(f"Final acquisition state: {acquisition.state}")
         print(f"Diagnostic images: {output_dir}")
+    elif args.command == "record":
+        return _record_scenario(args, scenario)
     else:
         if args.frames <= 0:
             print("--frames must be positive", file=sys.stderr)
