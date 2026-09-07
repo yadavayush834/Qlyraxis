@@ -1,0 +1,27 @@
+{
+  "name": "fog_figure_eight",
+  "description": "Low-contrast figure-eight motion under fog and moderate jitter.",
+  "camera": {
+    "world_size_px": [2000, 2000], "viewport_px": [640, 480],
+    "fov_deg": [4.0, 3.0], "update_hz": 30, "control_update_hz": 30,
+    "max_pan_speed_deg_s": 7.0, "max_tilt_speed_deg_s": 7.0,
+    "initial_position_px": [1000, 1000]
+  },
+  "target": {
+    "count": 1, "shape": "square", "size_px": [10, 10],
+    "initial_location": "random",
+    "motion": {"type": "figure_eight", "width_px": 800, "height_px": 500, "period_s": 24}
+  },
+  "disturbances": {
+    "noise": ["gaussian"], "noise_std_px": 8,
+    "salt_pepper_fraction": 0, "camera_jitter_max_px_frame": 8,
+    "atmosphere": "fog", "platform_motion": "linear",
+    "platform_motion_max_px_frame": 5,
+    "dropout": {"enabled": false, "start_s": 0, "duration_s": 0}
+  },
+  "evaluation": {
+    "duration_s": 60, "random_seed": 2616903,
+    "ground_truth_enabled": true, "log_format": ["csv", "json"]
+  }
+}
+

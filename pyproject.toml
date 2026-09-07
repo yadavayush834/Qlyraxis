@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "qlyraxis"
+version = "0.1.0"
+description = "AI-assisted virtual camera tracking laboratory for FSOC coarse alignment"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [{name = "Qlyraxis SIH Team"}]
+dependencies = [
+  "numpy>=2.2,<3",
+  "opencv-python-headless>=4.11,<5",
+]
+
+[project.scripts]
+qlyraxis = "qlyraxis.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

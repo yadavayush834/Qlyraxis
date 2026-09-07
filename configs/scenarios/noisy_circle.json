@@ -1,0 +1,27 @@
+{
+  "name": "noisy_circle",
+  "description": "Circular tracking with mixed sensor noise.",
+  "camera": {
+    "world_size_px": [2000, 2000], "viewport_px": [640, 480],
+    "fov_deg": [4.0, 3.0], "update_hz": 30, "control_update_hz": 30,
+    "max_pan_speed_deg_s": 6.0, "max_tilt_speed_deg_s": 6.0,
+    "initial_position_px": [1000, 1000]
+  },
+  "target": {
+    "count": 1, "shape": "circle", "size_px": [8, 8],
+    "initial_location": "random",
+    "motion": {"type": "circular", "radius_px": 450, "period_s": 20}
+  },
+  "disturbances": {
+    "noise": ["gaussian", "poisson"], "noise_std_px": 12,
+    "salt_pepper_fraction": 0, "camera_jitter_max_px_frame": 3,
+    "atmosphere": "clear", "platform_motion": "linear",
+    "platform_motion_max_px_frame": 2,
+    "dropout": {"enabled": false, "start_s": 0, "duration_s": 0}
+  },
+  "evaluation": {
+    "duration_s": 60, "random_seed": 2616902,
+    "ground_truth_enabled": true, "log_format": ["csv", "json"]
+  }
+}
+

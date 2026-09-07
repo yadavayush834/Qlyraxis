@@ -1,0 +1,27 @@
+{
+  "name": "jitter_random",
+  "description": "Random target motion with maximum permitted camera jitter.",
+  "camera": {
+    "world_size_px": [2000, 2000], "viewport_px": [640, 480],
+    "fov_deg": [4.0, 3.0], "update_hz": 30, "control_update_hz": 30,
+    "max_pan_speed_deg_s": 10.0, "max_tilt_speed_deg_s": 10.0,
+    "initial_position_px": [1000, 1000]
+  },
+  "target": {
+    "count": 1, "shape": "circle", "size_px": [5, 5],
+    "initial_location": "random",
+    "motion": {"type": "random", "max_speed_px_s": 180, "turn_interval_s": 1.5}
+  },
+  "disturbances": {
+    "noise": ["salt_pepper"], "noise_std_px": 0,
+    "salt_pepper_fraction": 0.1, "camera_jitter_max_px_frame": 20,
+    "atmosphere": "low_light", "platform_motion": "random",
+    "platform_motion_max_px_frame": 20,
+    "dropout": {"enabled": false, "start_s": 0, "duration_s": 0}
+  },
+  "evaluation": {
+    "duration_s": 60, "random_seed": 2616904,
+    "ground_truth_enabled": true, "log_format": ["csv", "json"]
+  }
+}
+

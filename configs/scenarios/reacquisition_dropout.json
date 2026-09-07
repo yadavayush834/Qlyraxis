@@ -1,0 +1,27 @@
+{
+  "name": "reacquisition_dropout",
+  "description": "Tests prediction and re-acquisition after a temporary beacon dropout.",
+  "camera": {
+    "world_size_px": [2000, 2000], "viewport_px": [640, 480],
+    "fov_deg": [4.0, 3.0], "update_hz": 30, "control_update_hz": 30,
+    "max_pan_speed_deg_s": 8.0, "max_tilt_speed_deg_s": 8.0,
+    "initial_position_px": [1000, 1000]
+  },
+  "target": {
+    "count": 1, "shape": "square", "size_px": [10, 10],
+    "initial_location": "random",
+    "motion": {"type": "straight_line", "speed_px_s": 150, "heading_deg": 40}
+  },
+  "disturbances": {
+    "noise": ["gaussian"], "noise_std_px": 10,
+    "salt_pepper_fraction": 0, "camera_jitter_max_px_frame": 5,
+    "atmosphere": "haze", "platform_motion": "linear",
+    "platform_motion_max_px_frame": 4,
+    "dropout": {"enabled": true, "start_s": 20, "duration_s": 0.75}
+  },
+  "evaluation": {
+    "duration_s": 60, "random_seed": 2616905,
+    "ground_truth_enabled": true, "log_format": ["csv", "json"]
+  }
+}
+
