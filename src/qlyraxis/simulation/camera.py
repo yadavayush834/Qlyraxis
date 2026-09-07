@@ -74,6 +74,25 @@ class VirtualCamera:
         )
 
     @property
+    def angular_limits_deg(self) -> tuple[tuple[float, float], tuple[float, float]]:
+        pixels_per_pan_deg, pixels_per_tilt_deg = self.px_per_degree
+        half_width = self.viewport_px[0] / 2.0
+        half_height = self.viewport_px[1] / 2.0
+        world_center_x = self.world_size_px[0] / 2.0
+        world_center_y = self.world_size_px[1] / 2.0
+        pan_limits = (
+            (half_width - world_center_x) / pixels_per_pan_deg,
+            (self.world_size_px[0] - half_width - world_center_x)
+            / pixels_per_pan_deg,
+        )
+        tilt_limits = (
+            (world_center_y - (self.world_size_px[1] - half_height))
+            / pixels_per_tilt_deg,
+            (world_center_y - half_height) / pixels_per_tilt_deg,
+        )
+        return pan_limits, tilt_limits
+
+    @property
     def viewport_bounds(self) -> tuple[int, int, int, int]:
         half_width = self.viewport_px[0] / 2.0
         half_height = self.viewport_px[1] / 2.0
@@ -143,4 +162,3 @@ class VirtualCamera:
         self._pan_rate = 0.0
         self._tilt_rate = 0.0
         return self.state
-

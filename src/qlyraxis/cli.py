@@ -1,4 +1,4 @@
-"""Phase 1 command-line entry point."""
+"""Qlyraxis command-line entry point."""
 
 from __future__ import annotations
 
@@ -33,6 +33,12 @@ def build_parser() -> argparse.ArgumentParser:
     detect.add_argument("scenario", help="path to scenario JSON")
     detect.add_argument("--frames", type=int, default=60)
     detect.add_argument("--output-dir", default="work/phase3-detection")
+    track = subparsers.add_parser(
+        "track", help="run Phase 4 closed-loop tracking and pan-tilt control"
+    )
+    track.add_argument("scenario", help="path to scenario JSON")
+    track.add_argument("--frames", type=int, default=300)
+    track.add_argument("--output-dir", default="work/phase4-tracking")
     return parser
 
 
@@ -77,7 +83,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         print(f"Camera preview: {camera_path}")
         print(f"World overview: {overview_path}")
-    else:
+    elif args.command == "detect":
         if args.frames <= 0:
             print("--frames must be positive", file=sys.stderr)
             return 2
@@ -130,6 +136,105 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Frames with a detection: {detected_frames}")
         print(f"First acquisition: {acquisition_text}")
         print(f"Final acquisition state: {acquisition.state}")
+        print(f"Diagnostic images: {output_dir}")
+    else:
+        if args.frames <= 0:
+            print("--frames must be positive", file=sys.stderr)
+            return 2
+        import math
+        from statistics import mean
+        from time import perf_counter
+
+        import cv2
+
+        from qlyraxis.contracts import TrackingState
+        from qlyraxis.tracking import ClosedLoopSystem
+        from qlyraxis.tracking.visualization import annotate_tracking
+
+        system = ClosedLoopSystem.from_scenario(scenario)
+        camera_config = scenario.camera
+        centroid_errors: list[float] = []
+        pointing_errors: list[float] = []
+        acquired_at: float | None = None
+        post_acquisition_frames = 0
+        locked_frames = 0
+        snapshot = None
+        detections = ()
+        estimate = None
+        start = perf_counter()
+        for _ in range(args.frames):
+            result = system.step()
+            snapshot = result.simulation
+            detections = result.detections
+            estimate = result.estimate
+            if result.state == TrackingState.TRACK and acquired_at is None:
+                acquired_at = snapshot.frame.timestamp_s
+            if acquired_at is not None:
+                post_acquisition_frames += 1
+                if result.state in {TrackingState.TRACK, TrackingState.COAST}:
+                    locked_frames += 1
+
+            truth = snapshot.target_viewport_positions[0]
+            if truth is not None:
+                pointing_errors.append(
+                    math.dist(
+                        truth,
+                        (
+                            float(camera_config["viewport_px"][0]) / 2.0,
+                            float(camera_config["viewport_px"][1]) / 2.0,
+                        ),
+                    )
+                )
+                if system.tracker.selected_detection is not None:
+                    centroid_errors.append(
+                        math.dist(
+                            (
+                                system.tracker.selected_detection.x_px,
+                                system.tracker.selected_detection.y_px,
+                            ),
+                            truth,
+                        )
+                    )
+        elapsed = perf_counter() - start
+        assert snapshot is not None
+
+        output_dir = Path(args.output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        annotated_path = output_dir / f"{scenario.name}_tracking.png"
+        overview_path = output_dir / f"{scenario.name}_overview.png"
+        annotated = annotate_tracking(
+            snapshot.frame.image,
+            detections,
+            estimate,
+            result.state,
+            result.search_scope,
+            result.next_command,
+        )
+        if not cv2.imwrite(str(annotated_path), annotated):
+            print(f"could not write {annotated_path}", file=sys.stderr)
+            return 1
+        if not cv2.imwrite(str(overview_path), system.engine.overview(snapshot)):
+            print(f"could not write {overview_path}", file=sys.stderr)
+            return 1
+
+        acquisition_text = (
+            f"{acquired_at:.3f} s" if acquired_at is not None else "not acquired"
+        )
+        retention = (
+            100.0 * locked_frames / post_acquisition_frames
+            if post_acquisition_frames
+            else 0.0
+        )
+        print(f"Processed frames: {args.frames}")
+        print(f"Acquisition time: {acquisition_text}")
+        print(f"Final tracking state: {result.state}")
+        print(f"Lock retention: {retention:.2f}%")
+        if centroid_errors:
+            print(f"Mean centroid error: {mean(centroid_errors):.3f} px")
+            print(f"Maximum centroid error: {max(centroid_errors):.3f} px")
+        if pointing_errors:
+            print(f"Mean camera pointing offset: {mean(pointing_errors):.3f} px")
+        print(f"Pipeline throughput: {args.frames / elapsed:.1f} FPS")
         print(f"Diagnostic images: {output_dir}")
     return 0
 

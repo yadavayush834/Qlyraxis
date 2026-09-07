@@ -40,12 +40,12 @@ Exit criteria: acquire every clear baseline target in less than two seconds.
 
 ## Phase 4 - Tracking and control
 
-Status: not started
+Status: complete
 
-- [ ] Kalman motion estimation
-- [ ] SEARCH/ACQUIRE/TRACK/COAST/REACQUIRE state machine
-- [ ] PID pan/tilt control
-- [ ] Local and global re-acquisition
+- [x] Kalman motion estimation
+- [x] SEARCH/ACQUIRE/TRACK/COAST/REACQUIRE state machine
+- [x] PID pan/tilt control
+- [x] Local and global re-acquisition
 
 Exit criteria: clear scenarios meet official error, loss, and speed thresholds.
 

@@ -27,9 +27,13 @@ class SimulationClockTests(unittest.TestCase):
 
 
 class TrajectoryTests(unittest.TestCase):
-    def test_straight_line_position_and_wrap(self) -> None:
+    def test_straight_line_reflects_continuously_at_world_edge(self) -> None:
         trajectory = StraightLineTrajectory((90, 50), 20, 0, (100, 100))
-        self.assertEqual(trajectory.position_at(1.0), (10.0, 50.0))
+        self.assertEqual(trajectory.position_at(0.5), (100.0, 50.0))
+        self.assertEqual(trajectory.position_at(1.0), (90.0, 50.0))
+        before = trajectory.position_at(0.5 - 1e-8)
+        after = trajectory.position_at(0.5 + 1e-8)
+        self.assertLess(math.dist(before, after), 0.001)
 
     def test_circle_is_periodic(self) -> None:
         trajectory = CircularTrajectory((500, 500), 100, 8)

@@ -20,10 +20,6 @@ def _validate_world(world_size: Size) -> None:
         raise ValueError("world dimensions must be positive")
 
 
-def _wrap(value: float, limit: float) -> float:
-    return value % limit
-
-
 def _reflect(value: float, limit: float) -> float:
     """Reflect any coordinate into [0, limit] without discontinuities."""
 
@@ -50,7 +46,7 @@ class StraightLineTrajectory:
         angle = math.radians(self.heading_deg)
         x = self.initial[0] + self.speed_px_s * math.cos(angle) * time_s
         y = self.initial[1] + self.speed_px_s * math.sin(angle) * time_s
-        return _wrap(x, self.world_size[0]), _wrap(y, self.world_size[1])
+        return _reflect(x, self.world_size[0]), _reflect(y, self.world_size[1])
 
 
 @dataclass(frozen=True, slots=True)
@@ -207,4 +203,3 @@ def build_trajectory(
             seed=seed,
         )
     raise ValueError(f"unsupported trajectory: {motion_type}")
-

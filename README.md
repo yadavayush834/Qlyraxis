@@ -8,11 +8,10 @@ performance reports.
 
 ## Current status
 
-Phases 1 through 3 are complete. The repository contains configuration
-validation, a deterministic virtual environment with camera dynamics and all four
-mandatory trajectories, and an image-only beacon acquisition pipeline with
-preprocessing, multi-scale candidate generation, centroiding, confidence scoring,
-and temporal confirmation. Motion prediction and camera control start in Phase 4.
+Phases 1 through 4 are complete. The repository contains configuration
+validation, a deterministic virtual environment, image-only beacon acquisition,
+Kalman motion estimation, a complete tracking state machine, bounded PID pan-tilt
+control, and local/global re-acquisition. Disturbance rendering starts in Phase 5.
 
 ## Quick start
 
@@ -24,6 +23,7 @@ qlyraxis validate configs/scenarios/clear_straight.json
 qlyraxis show configs/scenarios/clear_straight.json
 qlyraxis simulate configs/scenarios/clear_straight.json --frames 90
 qlyraxis detect configs/scenarios/clear_straight.json --frames 60
+qlyraxis track configs/scenarios/clear_straight.json --frames 300
 python -m unittest discover -s tests -v
 ```
 
