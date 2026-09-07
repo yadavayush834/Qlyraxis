@@ -27,6 +27,12 @@ def build_parser() -> argparse.ArgumentParser:
     simulate.add_argument("scenario", help="path to scenario JSON")
     simulate.add_argument("--frames", type=int, default=90)
     simulate.add_argument("--output-dir", default="work/phase2-preview")
+    detect = subparsers.add_parser(
+        "detect", help="run Phase 3 beacon detection on simulated camera frames"
+    )
+    detect.add_argument("scenario", help="path to scenario JSON")
+    detect.add_argument("--frames", type=int, default=60)
+    detect.add_argument("--output-dir", default="work/phase3-detection")
     return parser
 
 
@@ -42,7 +48,7 @@ def main(argv: list[str] | None = None) -> int:
         print(scenario.summary())
     elif args.command == "validate":
         print(f"Valid scenario: {scenario.name}")
-    else:
+    elif args.command == "simulate":
         if args.frames <= 0:
             print("--frames must be positive", file=sys.stderr)
             return 2
@@ -71,6 +77,60 @@ def main(argv: list[str] | None = None) -> int:
         )
         print(f"Camera preview: {camera_path}")
         print(f"World overview: {overview_path}")
+    else:
+        if args.frames <= 0:
+            print("--frames must be positive", file=sys.stderr)
+            return 2
+        import cv2
+
+        from qlyraxis.simulation import SimulationEngine
+        from qlyraxis.vision import AcquisitionGate, BeaconDetector
+        from qlyraxis.vision.visualization import annotate_detections
+
+        engine = SimulationEngine.from_scenario(scenario)
+        detector = BeaconDetector()
+        acquisition_gate = AcquisitionGate()
+        output_dir = Path(args.output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        detected_frames = 0
+        first_acquired_s = None
+        debug = None
+        acquisition = acquisition_gate.result
+        snapshot = None
+        for _ in range(args.frames):
+            snapshot = engine.step()
+            debug = detector.detect_debug(snapshot.frame)
+            acquisition = acquisition_gate.update(debug.detections)
+            if debug.detections:
+                detected_frames += 1
+            if acquisition.state == "acquired" and first_acquired_s is None:
+                first_acquired_s = snapshot.frame.timestamp_s
+        assert snapshot is not None and debug is not None
+
+        annotated = annotate_detections(
+            snapshot.frame.image,
+            debug.detections,
+            acquisition,
+        )
+        outputs = {
+            "annotated": annotated,
+            "intensity-mask": debug.intensity_mask,
+            "multiscale-mask": debug.multiscale_mask,
+            "candidate-mask": debug.candidate_mask,
+        }
+        for suffix, image in outputs.items():
+            path = output_dir / f"{scenario.name}_{suffix}.png"
+            if not cv2.imwrite(str(path), image):
+                print(f"could not write {path}", file=sys.stderr)
+                return 1
+        acquisition_text = (
+            f"{first_acquired_s:.3f} s" if first_acquired_s is not None else "not acquired"
+        )
+        print(f"Processed frames: {args.frames}")
+        print(f"Frames with a detection: {detected_frames}")
+        print(f"First acquisition: {acquisition_text}")
+        print(f"Final acquisition state: {acquisition.state}")
+        print(f"Diagnostic images: {output_dir}")
     return 0
 
 

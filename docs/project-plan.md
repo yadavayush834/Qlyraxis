@@ -29,12 +29,12 @@ cannot exceed configured physical limits.
 
 ## Phase 3 - Detection and acquisition
 
-Status: not started
+Status: complete
 
-- [ ] Preprocessing and adaptive thresholding
-- [ ] Multi-scale candidate generation
-- [ ] Blob filtering and centroiding
-- [ ] Confidence score and acquisition state
+- [x] Preprocessing and adaptive thresholding
+- [x] Multi-scale candidate generation
+- [x] Blob filtering and centroiding
+- [x] Confidence score and acquisition state
 
 Exit criteria: acquire every clear baseline target in less than two seconds.
 

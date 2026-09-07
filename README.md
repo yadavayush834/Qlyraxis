@@ -8,10 +8,11 @@ performance reports.
 
 ## Current status
 
-Phases 1 and 2 are complete. The repository contains configuration validation,
-stable module contracts, architecture and UI documents, five benchmark scenario
-definitions, and a deterministic virtual environment with camera dynamics and
-all four mandatory target trajectories. Computer vision starts in Phase 3.
+Phases 1 through 3 are complete. The repository contains configuration
+validation, a deterministic virtual environment with camera dynamics and all four
+mandatory trajectories, and an image-only beacon acquisition pipeline with
+preprocessing, multi-scale candidate generation, centroiding, confidence scoring,
+and temporal confirmation. Motion prediction and camera control start in Phase 4.
 
 ## Quick start
 
@@ -22,6 +23,7 @@ python -m pip install -e .
 qlyraxis validate configs/scenarios/clear_straight.json
 qlyraxis show configs/scenarios/clear_straight.json
 qlyraxis simulate configs/scenarios/clear_straight.json --frames 90
+qlyraxis detect configs/scenarios/clear_straight.json --frames 60
 python -m unittest discover -s tests -v
 ```
 
