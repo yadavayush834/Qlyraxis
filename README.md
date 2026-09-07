@@ -1,14 +1,14 @@
 # Qlyraxis
 
 Qlyraxis is an AI-assisted virtual camera tracking laboratory for coarse
-alignment of mobile Free Space Optical Communication (FSOC) terminals. It will
-simulate optical beacons and disturbances, acquire and track a selected beacon,
-control a constrained virtual pan-tilt camera, and generate reproducible
-performance reports.
+alignment of mobile Free Space Optical Communication (FSOC) terminals. It
+simulates optical beacons and disturbances, acquires and tracks a selected
+beacon, controls a constrained virtual pan-tilt camera, and generates
+reproducible performance reports.
 
 ## Current status
 
-Phases 1 through 6 are complete. The repository contains configuration
+All seven planned phases are complete. The repository contains configuration
 validation, a deterministic virtual environment, image-only beacon acquisition,
 Kalman motion estimation, a complete tracking state machine, bounded PID pan-tilt
 control, local/global re-acquisition, and a deterministic disturbance pipeline.
@@ -20,6 +20,10 @@ Recorded MP4 files and naturally sorted image sequences now use the same frame
 contract as the simulator. A compact candidate verifier is trained on synthetic
 patches, exported to ONNX, and executed on the CPU through OpenCV or optional
 ONNX Runtime.
+
+The final release adds a Tk desktop dashboard, live telemetry and error history,
+automatic CSV/JSON/HTML performance reports, five 60-second benchmark logs, a
+PyInstaller Linux application bundle, a technical report, and a user manual.
 
 ## Quick start
 
@@ -36,6 +40,8 @@ qlyraxis track configs/scenarios/fog_figure_eight.json --frames 300
 qlyraxis track configs/scenarios/reacquisition_dropout.json --frames 660
 qlyraxis record configs/scenarios/fog_figure_eight.json work/fog.mp4 --frames 240
 qlyraxis analyze work/fog.mp4 --model models/beacon_verifier.onnx
+qlyraxis benchmark configs/scenarios/clear_straight.json --output-dir reports/clear
+qlyraxis gui
 python -m unittest discover -s tests -v
 ```
 
@@ -45,12 +51,23 @@ Without installing the package:
 PYTHONPATH=src python -m qlyraxis validate configs/scenarios/clear_straight.json
 ```
 
+Build a standalone Linux folder with:
+
+```bash
+python -m pip install -e '.[packaging]'
+scripts/build_executable.sh
+dist/Qlyraxis/Qlyraxis gui
+```
+
 ## Repository layout
 
 ```text
 configs/scenarios/       Reproducible SIH benchmark scenarios
+deliverables/            Technical report, manual, and benchmark evidence
 docs/                    Architecture, project plan, and UI wireframe
 models/                  Portable ONNX verifier and reproducible NumPy weights
+packaging/               PyInstaller application specification
+scripts/                 Release and benchmark helper scripts
 src/qlyraxis/            Simulator, sources, AI, vision, tracking, and control
 tests/                   Unit and closed-loop integration tests
 ```
@@ -65,4 +82,4 @@ tests/                   Unit and closed-loop integration tests
 5. Performance claims must be generated automatically from recorded runs.
 
 See `docs/architecture.md`, `docs/project-plan.md`, and
-`docs/phase6-testing.md` for the design and local testing workflow.
+`docs/phase7-delivery.md` for the design, local operation, and release workflow.

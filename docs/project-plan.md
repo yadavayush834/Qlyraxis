@@ -75,13 +75,13 @@ Exit criteria: process an unseen MP4 without simulator state or ground truth.
 
 ## Phase 7 - GUI, metrics, packaging, and delivery
 
-Status: not started
+Status: complete
 
-- [ ] PySide6 application
-- [ ] Live telemetry and charts
-- [ ] CSV/JSON/PDF or HTML reports
-- [ ] Standalone executable
-- [ ] User manual, technical report, and demo assets
+- [x] Tk desktop application
+- [x] Live telemetry and error-history chart
+- [x] CSV, JSON, and self-contained HTML reports
+- [x] Standalone PyInstaller application bundle
+- [x] User manual, 13-page technical report, and benchmark evidence
 
 Exit criteria: a clean computer can run the packaged application and reproduce
 the submitted benchmark report.

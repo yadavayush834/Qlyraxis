@@ -18,6 +18,7 @@ dependencies = [
 [project.optional-dependencies]
 training = ["onnx>=1.17,<2"]
 runtime = ["onnxruntime>=1.20,<2"]
+packaging = ["pyinstaller>=6.16,<7"]
 
 [project.scripts]
 qlyraxis = "qlyraxis.cli:main"

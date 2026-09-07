@@ -54,8 +54,9 @@ estimator, and controller modules must not import simulator state.
 | `disturbances` | Seeded noise, atmosphere, blur, jitter, motion, and dropout | 5 |
 | `sources` | Simulation, MP4, and naturally sorted image sequences | 6 |
 | `ai` | Synthetic patches, tiny convolutional classifier, ONNX inference | 6 |
-| `metrics` | Live metrics and performance reports | 7 |
-| `ui` | PySide6 desktop application | 7 |
+| `metrics` | Per-frame metrics and CSV, JSON, and HTML reports | 7 |
+| `ui` | Tk desktop application and live charts | 7 |
+| `resources` | Source and packaged-resource resolution | 7 |
 
 ## Configuration contract
 
@@ -79,8 +80,8 @@ SEARCH --candidate--> ACQUIRE --confirmed--> TRACK
                   +--candidate-------+
 ```
 
-The exact confidence thresholds and timeouts will be configuration values once
-the detection baseline exists.
+Confidence thresholds and timeouts are configuration values shared by simulated
+and recorded inputs.
 
 ## Target performance envelope
 
@@ -94,10 +95,11 @@ the detection baseline exists.
 | Camera update rate | >= 30 Hz | 30-60 Hz |
 | Control update rate | >= 20 Hz | 30 Hz |
 
-## Planned technology
+## Implemented technology
 
-- Python 3.11, NumPy, SciPy, and OpenCV
-- PySide6 and PyQtGraph for the desktop interface
-- PyTorch for training; ONNX Runtime for deployment
-- Pandas and Matplotlib for reporting
-- PyInstaller for the standalone executable
+- Python 3.11, NumPy, and OpenCV
+- Tk for the desktop interface and canvas-based charts
+- A NumPy-trained compact CNN exported to ONNX
+- OpenCV DNN by default and optional ONNX Runtime for CPU inference
+- Standard-library CSV, JSON, and self-contained HTML reporting
+- PyInstaller for the standalone application bundle

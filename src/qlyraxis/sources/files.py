@@ -84,6 +84,10 @@ class ImageSequenceSource:
             raise ValueError(f"unsupported image type: {unsupported[0].suffix}")
         self.fps = float(fps)
         self.frame_count = len(self.paths)
+        sample = cv2.imread(str(self.paths[0]), cv2.IMREAD_UNCHANGED)
+        if sample is None:
+            raise ValueError(f"could not decode image: {self.paths[0]}")
+        self.height, self.width = sample.shape[:2]
         self._index = 0
 
     @classmethod

@@ -63,6 +63,13 @@ def build_parser() -> argparse.ArgumentParser:
     train_ai.add_argument("--model", default="models/beacon_verifier.onnx")
     train_ai.add_argument("--weights", default="models/beacon_verifier.npz")
     train_ai.add_argument("--dataset-output")
+    benchmark = subparsers.add_parser(
+        "benchmark", help="run a scenario and export CSV, JSON, and HTML reports"
+    )
+    benchmark.add_argument("scenario", help="path to scenario JSON")
+    benchmark.add_argument("--frames", type=int, default=0)
+    benchmark.add_argument("--output-dir", default="reports")
+    subparsers.add_parser("gui", help="launch the Qlyraxis desktop application")
     return parser
 
 
@@ -108,6 +115,7 @@ def _analyze_recording(args: argparse.Namespace) -> int:
     from qlyraxis.ai import OnnxCandidateVerifier, VerifiedBeaconDetector
     from qlyraxis.contracts import TrackingState
     from qlyraxis.recorded import RecordedTrackingSystem
+    from qlyraxis.resources import resource_path
     from qlyraxis.sources import open_frame_source
     from qlyraxis.tracking.visualization import annotate_tracking
     from qlyraxis.vision import BeaconDetector
@@ -118,7 +126,7 @@ def _analyze_recording(args: argparse.Namespace) -> int:
         detector = BeaconDetector()
         backend = "classical"
         if not args.no_ai:
-            verifier = OnnxCandidateVerifier(args.model)
+            verifier = OnnxCandidateVerifier(resource_path(args.model))
             detector = VerifiedBeaconDetector(verifier, detector)
             backend = f"AI/{verifier.backend}"
     except (FileNotFoundError, ValueError, RuntimeError, cv2.error) as exc:
@@ -225,14 +233,75 @@ def _record_scenario(args: argparse.Namespace, scenario) -> int:
     return 0
 
 
+def _benchmark(args: argparse.Namespace, scenario) -> int:
+    from dataclasses import asdict
+    from time import perf_counter
+
+    from qlyraxis.metrics import PerformanceRecorder
+    from qlyraxis.tracking import ClosedLoopSystem
+
+    frame_count = args.frames or round(
+        float(scenario.evaluation["duration_s"]) * float(scenario.camera["update_hz"])
+    )
+    if frame_count <= 0:
+        print("--frames must be positive or zero for scenario duration", file=sys.stderr)
+        return 2
+    system = ClosedLoopSystem.from_scenario(scenario)
+    recorder = PerformanceRecorder(
+        scenario.name,
+        tuple(float(value) for value in scenario.camera["viewport_px"]),
+        configuration=asdict(scenario),
+    )
+    for _ in range(frame_count):
+        started = perf_counter()
+        result = system.step()
+        process_ms = (perf_counter() - started) * 1000.0
+        snapshot = result.simulation
+        recorder.record(
+            frame_index=snapshot.frame.index,
+            timestamp_s=snapshot.frame.timestamp_s,
+            state=result.state,
+            detections=result.detections,
+            selected=system.tracker.selected_detection,
+            estimate=result.estimate,
+            command=result.next_command,
+            truth=snapshot.target_sensor_positions[0],
+            processing_time_ms=process_ms,
+        )
+    paths = recorder.export(args.output_dir)
+    summary = recorder.summary()
+    acquisition = (
+        f"{summary.acquisition_time_s:.3f} s"
+        if summary.acquisition_time_s is not None
+        else "not acquired"
+    )
+    print(f"Scenario: {summary.scenario}")
+    print(f"Frames: {summary.frames}")
+    print(f"Acquisition time: {acquisition}")
+    print(f"Lock retention: {summary.lock_retention_percent:.2f}%")
+    if summary.average_tracking_error_px is not None:
+        print(f"Mean tracking error: {summary.average_tracking_error_px:.3f} px")
+        print(f"Maximum tracking error: {summary.maximum_tracking_error_px:.3f} px")
+    print(f"Processing throughput: {summary.processing_fps:.1f} FPS")
+    for kind, path in paths.items():
+        print(f"{kind.upper()} report: {path}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "train-ai":
         return _train_ai(args)
     if args.command == "analyze":
         return _analyze_recording(args)
+    if args.command == "gui":
+        from qlyraxis.ui import launch
+
+        return launch()
+    from qlyraxis.resources import resource_path
+
     try:
-        scenario = load_scenario(args.scenario)
+        scenario = load_scenario(resource_path(args.scenario))
     except ConfigError as exc:
         print(f"Configuration error: {exc}", file=sys.stderr)
         return 2
@@ -331,6 +400,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Diagnostic images: {output_dir}")
     elif args.command == "record":
         return _record_scenario(args, scenario)
+    elif args.command == "benchmark":
+        return _benchmark(args, scenario)
     else:
         if args.frames <= 0:
             print("--frames must be positive", file=sys.stderr)
