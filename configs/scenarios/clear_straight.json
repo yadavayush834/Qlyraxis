@@ -24,6 +24,10 @@
     "salt_pepper_fraction": 0,
     "camera_jitter_max_px_frame": 0,
     "atmosphere": "clear",
+    "atmosphere_strength": 0,
+    "turbulence_strength_px": 0,
+    "defocus_blur_px": 0,
+    "motion_blur_px": 0,
     "platform_motion": "linear",
     "platform_motion_max_px_frame": 0,
     "dropout": {"enabled": false, "start_s": 0, "duration_s": 0}

@@ -38,6 +38,24 @@ class ScenarioConfigTests(unittest.TestCase):
         with self.assertRaisesRegex(ConfigError, "at least 30"):
             validate_scenario(invalid)
 
+    def test_unknown_platform_motion_is_rejected(self) -> None:
+        data = json.loads((SCENARIO_DIR / "clear_straight.json").read_text())
+        data["disturbances"]["platform_motion"] = "teleport"
+        with self.assertRaisesRegex(ConfigError, "platform_motion"):
+            validate_scenario(data)
+
+    def test_atmosphere_strength_above_one_is_rejected(self) -> None:
+        data = json.loads((SCENARIO_DIR / "clear_straight.json").read_text())
+        data["disturbances"]["atmosphere_strength"] = 1.1
+        with self.assertRaisesRegex(ConfigError, "atmosphere_strength"):
+            validate_scenario(data)
+
+    def test_invalid_dropout_contract_is_rejected(self) -> None:
+        data = json.loads((SCENARIO_DIR / "clear_straight.json").read_text())
+        data["disturbances"]["dropout"]["enabled"] = "yes"
+        with self.assertRaisesRegex(ConfigError, "must be boolean"):
+            validate_scenario(data)
+
 
 if __name__ == "__main__":
     unittest.main()

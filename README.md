@@ -8,10 +8,13 @@ performance reports.
 
 ## Current status
 
-Phases 1 through 4 are complete. The repository contains configuration
+Phases 1 through 5 are complete. The repository contains configuration
 validation, a deterministic virtual environment, image-only beacon acquisition,
 Kalman motion estimation, a complete tracking state machine, bounded PID pan-tilt
-control, and local/global re-acquisition. Disturbance rendering starts in Phase 5.
+control, local/global re-acquisition, and a deterministic disturbance pipeline.
+The pipeline supports Gaussian, Poisson, and salt-and-pepper noise; haze, fog,
+rain, and low light; defocus and motion blur; camera jitter; platform motion;
+atmospheric turbulence; and timed beacon dropout.
 
 ## Quick start
 
@@ -24,6 +27,8 @@ qlyraxis show configs/scenarios/clear_straight.json
 qlyraxis simulate configs/scenarios/clear_straight.json --frames 90
 qlyraxis detect configs/scenarios/clear_straight.json --frames 60
 qlyraxis track configs/scenarios/clear_straight.json --frames 300
+qlyraxis track configs/scenarios/fog_figure_eight.json --frames 300
+qlyraxis track configs/scenarios/reacquisition_dropout.json --frames 660
 python -m unittest discover -s tests -v
 ```
 
@@ -38,8 +43,8 @@ PYTHONPATH=src python -m qlyraxis validate configs/scenarios/clear_straight.json
 ```text
 configs/scenarios/       Reproducible SIH benchmark scenarios
 docs/                    Architecture, project plan, and UI wireframe
-src/qlyraxis/            Application package and cross-module contracts
-tests/                   Configuration contract tests
+src/qlyraxis/            Simulator, vision, tracking, control, and disturbances
+tests/                   Unit and closed-loop integration tests
 ```
 
 ## Non-negotiable design rules

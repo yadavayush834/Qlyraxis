@@ -51,7 +51,7 @@ estimator, and controller modules must not import simulator state.
 | `vision` | Acquisition, candidate verification, centroiding | 3 |
 | `tracking` | Filtering, prediction, state machine | 4 |
 | `control` | PID and optional predictive control | 4 |
-| `disturbances` | Noise, weather, blur, jitter | 5 |
+| `disturbances` | Seeded noise, atmosphere, blur, jitter, motion, and dropout | 5 |
 | `sources` | Simulation, MP4, image sequence, camera input | 6 |
 | `ai` | Candidate classifier and ONNX inference | 6 |
 | `metrics` | Live metrics and performance reports | 7 |

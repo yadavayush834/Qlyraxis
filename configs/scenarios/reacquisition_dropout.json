@@ -15,7 +15,9 @@
   "disturbances": {
     "noise": ["gaussian"], "noise_std_px": 10,
     "salt_pepper_fraction": 0, "camera_jitter_max_px_frame": 5,
-    "atmosphere": "haze", "platform_motion": "linear",
+    "atmosphere": "haze", "atmosphere_strength": 0.3,
+    "turbulence_strength_px": 0.5, "defocus_blur_px": 0, "motion_blur_px": 0,
+    "platform_motion": "linear",
     "platform_motion_max_px_frame": 4,
     "dropout": {"enabled": true, "start_s": 20, "duration_s": 0.75}
   },
@@ -24,4 +26,3 @@
     "ground_truth_enabled": true, "log_format": ["csv", "json"]
   }
 }
-

@@ -92,15 +92,14 @@ class BeaconDetector:
         small_scale = cv2.GaussianBlur(processed.enhanced, (0, 0), 0.8)
         large_scale = cv2.GaussianBlur(processed.enhanced, (0, 0), 2.4)
         dog = cv2.subtract(small_scale, large_scale)
-        dog_peak = float(dog.max())
-        if dog_peak > 0:
-            dog_normalized = np.clip(dog.astype(np.float32) * (255.0 / dog_peak), 0, 255)
-            dog_u8 = dog_normalized.astype(np.uint8)
-        else:
-            dog_u8 = np.zeros_like(dog)
-        _, multiscale_mask = cv2.threshold(
-            dog_u8,
+        dog_threshold = self._robust_threshold(
+            dog,
             self.config.dog_threshold,
+            self.config.mad_scale,
+        )
+        _, multiscale_mask = cv2.threshold(
+            dog,
+            dog_threshold,
             255,
             cv2.THRESH_BINARY,
         )

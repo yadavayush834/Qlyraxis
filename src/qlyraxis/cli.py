@@ -22,7 +22,7 @@ def build_parser() -> argparse.ArgumentParser:
         subparser = subparsers.add_parser(command, help=help_text)
         subparser.add_argument("scenario", help="path to scenario JSON")
     simulate = subparsers.add_parser(
-        "simulate", help="run the Phase 2 simulator and save final preview frames"
+        "simulate", help="run the simulator and save clean/disturbed preview frames"
     )
     simulate.add_argument("scenario", help="path to scenario JSON")
     simulate.add_argument("--frames", type=int, default=90)
@@ -34,7 +34,7 @@ def build_parser() -> argparse.ArgumentParser:
     detect.add_argument("--frames", type=int, default=60)
     detect.add_argument("--output-dir", default="work/phase3-detection")
     track = subparsers.add_parser(
-        "track", help="run Phase 4 closed-loop tracking and pan-tilt control"
+        "track", help="run disturbed closed-loop tracking and pan-tilt control"
     )
     track.add_argument("scenario", help="path to scenario JSON")
     track.add_argument("--frames", type=int, default=300)
@@ -70,9 +70,13 @@ def main(argv: list[str] | None = None) -> int:
         output_dir = Path(args.output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
         camera_path = output_dir / f"{scenario.name}_camera.png"
+        clean_camera_path = output_dir / f"{scenario.name}_clean-camera.png"
         overview_path = output_dir / f"{scenario.name}_overview.png"
         if not cv2.imwrite(str(camera_path), snapshot.frame.image):
             print(f"could not write {camera_path}", file=sys.stderr)
+            return 1
+        if not cv2.imwrite(str(clean_camera_path), snapshot.clean_frame.image):
+            print(f"could not write {clean_camera_path}", file=sys.stderr)
             return 1
         if not cv2.imwrite(str(overview_path), engine.overview(snapshot)):
             print(f"could not write {overview_path}", file=sys.stderr)
@@ -81,7 +85,8 @@ def main(argv: list[str] | None = None) -> int:
             f"Rendered {args.frames} deterministic frames at "
             f"{scenario.camera['update_hz']} Hz"
         )
-        print(f"Camera preview: {camera_path}")
+        print(f"Disturbed camera preview: {camera_path}")
+        print(f"Clean camera preview: {clean_camera_path}")
         print(f"World overview: {overview_path}")
     elif args.command == "detect":
         if args.frames <= 0:
@@ -174,7 +179,7 @@ def main(argv: list[str] | None = None) -> int:
                 if result.state in {TrackingState.TRACK, TrackingState.COAST}:
                     locked_frames += 1
 
-            truth = snapshot.target_viewport_positions[0]
+            truth = snapshot.target_sensor_positions[0]
             if truth is not None:
                 pointing_errors.append(
                     math.dist(

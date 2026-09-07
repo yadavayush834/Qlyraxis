@@ -15,7 +15,9 @@
   "disturbances": {
     "noise": ["salt_pepper"], "noise_std_px": 0,
     "salt_pepper_fraction": 0.1, "camera_jitter_max_px_frame": 20,
-    "atmosphere": "low_light", "platform_motion": "random",
+    "atmosphere": "low_light", "atmosphere_strength": 0.45,
+    "turbulence_strength_px": 0.7, "defocus_blur_px": 0, "motion_blur_px": 1,
+    "platform_motion": "random",
     "platform_motion_max_px_frame": 20,
     "dropout": {"enabled": false, "start_s": 0, "duration_s": 0}
   },
@@ -24,4 +26,3 @@
     "ground_truth_enabled": true, "log_format": ["csv", "json"]
   }
 }
-

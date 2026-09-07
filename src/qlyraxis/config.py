@@ -16,6 +16,14 @@ ALLOWED_MOTIONS = {"straight_line", "circular", "figure_eight", "random"}
 ALLOWED_ATMOSPHERES = {"clear", "haze", "fog", "rain", "low_light"}
 ALLOWED_NOISE = {"gaussian", "poisson", "salt_pepper"}
 ALLOWED_SHAPES = {"square", "circle"}
+ALLOWED_PLATFORM_MOTION = {
+    "none",
+    "linear",
+    "circular",
+    "figure_eight",
+    "spiral",
+    "random",
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -157,6 +165,8 @@ def validate_scenario(data: dict[str, Any]) -> Scenario:
         },
         "disturbances",
     )
+    if not isinstance(disturbances["noise"], list):
+        raise ConfigError("disturbances.noise must be a list")
     invalid_noise = set(disturbances["noise"]) - ALLOWED_NOISE
     if invalid_noise:
         raise ConfigError(f"unsupported noise types: {sorted(invalid_noise)}")
@@ -170,8 +180,32 @@ def validate_scenario(data: dict[str, Any]) -> Scenario:
         raise ConfigError(
             f"disturbances.atmosphere must be one of {sorted(ALLOWED_ATMOSPHERES)}"
         )
+    if disturbances["platform_motion"] not in ALLOWED_PLATFORM_MOTION:
+        raise ConfigError(
+            "disturbances.platform_motion must be one of "
+            f"{sorted(ALLOWED_PLATFORM_MOTION)}"
+        )
     if not 0 <= disturbances["platform_motion_max_px_frame"] <= 20:
         raise ConfigError("platform motion must be between 0 and 20 px/frame")
+    for field_name, maximum in (
+        ("atmosphere_strength", 1),
+        ("turbulence_strength_px", 20),
+        ("defocus_blur_px", 15),
+        ("motion_blur_px", 31),
+    ):
+        value = disturbances.get(field_name, 0)
+        if not isinstance(value, (int, float)) or not 0 <= value <= maximum:
+            raise ConfigError(
+                f"disturbances.{field_name} must be between 0 and {maximum}"
+            )
+    dropout = disturbances["dropout"]
+    if not isinstance(dropout, dict):
+        raise ConfigError("disturbances.dropout must be an object")
+    _require_keys(dropout, {"enabled", "start_s", "duration_s"}, "disturbances.dropout")
+    if not isinstance(dropout["enabled"], bool):
+        raise ConfigError("disturbances.dropout.enabled must be boolean")
+    if dropout["start_s"] < 0 or dropout["duration_s"] < 0:
+        raise ConfigError("dropout start and duration cannot be negative")
 
     evaluation = data["evaluation"]
     _require_keys(

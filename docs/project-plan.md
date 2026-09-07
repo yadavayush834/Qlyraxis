@@ -51,11 +51,13 @@ Exit criteria: clear scenarios meet official error, loss, and speed thresholds.
 
 ## Phase 5 - Disturbances
 
-Status: not started
+Status: complete
 
-- [ ] Noise, haze/fog, low light, blur, jitter, and dropout
-- [ ] Platform motion and atmospheric warp
-- [ ] Severity presets and deterministic replay
+- [x] Gaussian, Poisson, and salt-and-pepper sensor noise
+- [x] Haze, fog, rain, low light, defocus, and motion blur
+- [x] Camera jitter, platform motion, atmospheric warp, and timed dropout
+- [x] Configurable severity values and deterministic replay by seed/frame
+- [x] Clean/disturbed frame comparison and disturbance-aware ground truth
 
 Exit criteria: every disturbance is independently selectable and reproducible.
 

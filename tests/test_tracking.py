@@ -1,5 +1,7 @@
 import math
 import unittest
+from copy import deepcopy
+from dataclasses import replace
 
 from qlyraxis.config import load_scenario
 from qlyraxis.contracts import Detection, TrackEstimate, TrackingState
@@ -126,11 +128,11 @@ class ControllerTests(unittest.TestCase):
         search = RasterSearchController(5, 5, (-4.25, 4.25), (-4.75, 4.75))
         initial = CameraState((1000, 1000), 0, 0, 0, 0)
         first = search.command(initial)
-        self.assertLess(first.pan_rate_deg_s, 0)
-        self.assertEqual(first.tilt_rate_deg_s, 0)
-        left_edge = CameraState((320, 1000), -4.25, 0, 0, 0)
-        second = search.command(left_edge)
-        self.assertGreater(second.pan_rate_deg_s, 0)
+        self.assertGreater(first.pan_rate_deg_s, 0)
+        self.assertEqual(first.tilt_rate_deg_s, 0.0)
+        turnaround = CameraState((1592, 1000), 3.7, 0, 0, 0)
+        second = search.command(turnaround)
+        self.assertLess(second.pan_rate_deg_s, 0)
         self.assertLess(second.tilt_rate_deg_s, 0)
 
 
@@ -141,6 +143,7 @@ class ClosedLoopIntegrationTests(unittest.TestCase):
             "configs/scenarios/noisy_circle.json",
             "configs/scenarios/fog_figure_eight.json",
             "configs/scenarios/jitter_random.json",
+            "configs/scenarios/reacquisition_dropout.json",
         ]
         for path in paths:
             with self.subTest(path=path):
@@ -166,7 +169,7 @@ class ClosedLoopIntegrationTests(unittest.TestCase):
                 acquired = True
             if acquired:
                 post_acquisition_states.append(result.state)
-            truth = result.simulation.target_viewport_positions[0]
+            truth = result.simulation.target_sensor_positions[0]
             if truth is not None and system.tracker.selected_detection is not None:
                 measured = system.tracker.selected_detection
                 centroid_errors.append(math.dist((measured.x_px, measured.y_px), truth))
@@ -186,6 +189,51 @@ class ClosedLoopIntegrationTests(unittest.TestCase):
             )
         )
         self.assertLess(max(centroid_errors), 10.0)
+
+    def test_severe_fog_and_jitter_profiles_retain_lock(self) -> None:
+        for path in (
+            "configs/scenarios/fog_figure_eight.json",
+            "configs/scenarios/jitter_random.json",
+        ):
+            with self.subTest(path=path):
+                system = ClosedLoopSystem.from_scenario(load_scenario(path))
+                acquired = False
+                states = []
+                for _ in range(180):
+                    result = system.step()
+                    if result.state == TrackingState.TRACK:
+                        acquired = True
+                    if acquired:
+                        states.append(result.state)
+                self.assertTrue(acquired)
+                self.assertTrue(
+                    all(
+                        state in {TrackingState.TRACK, TrackingState.COAST}
+                        for state in states
+                    )
+                )
+
+    def test_dropout_reacquires_within_one_second(self) -> None:
+        scenario = load_scenario("configs/scenarios/reacquisition_dropout.json")
+        disturbances = deepcopy(scenario.disturbances)
+        disturbances["dropout"] = {
+            "enabled": True,
+            "start_s": 3.0,
+            "duration_s": 0.75,
+        }
+        system = ClosedLoopSystem.from_scenario(
+            replace(scenario, disturbances=disturbances)
+        )
+        reacquired_at = None
+        for _ in range(165):
+            result = system.step()
+            timestamp_s = result.simulation.frame.timestamp_s
+            if timestamp_s >= 3.75 and result.state == TrackingState.TRACK:
+                reacquired_at = timestamp_s
+                break
+        self.assertIsNotNone(reacquired_at)
+        assert reacquired_at is not None
+        self.assertLessEqual(reacquired_at - 3.75, 1.0)
 
 
 if __name__ == "__main__":

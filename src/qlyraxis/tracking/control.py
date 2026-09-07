@@ -94,7 +94,7 @@ class PanTiltController:
 
 
 class RasterSearchController:
-    """Sweep the available camera field using overlapping horizontal bands."""
+    """Fast center/corner survey followed by overlapping raster sweeps."""
 
     def __init__(
         self,
@@ -102,8 +102,9 @@ class RasterSearchController:
         max_tilt_speed_deg_s: float,
         pan_limits_deg: tuple[float, float],
         tilt_limits_deg: tuple[float, float],
-        vertical_speed_fraction: float = 0.35,
+        vertical_speed_fraction: float = 0.45,
         boundary_margin_deg: float = 0.05,
+        initial_turnaround_deg: float = 3.8,
     ) -> None:
         self.max_pan_speed_deg_s = max_pan_speed_deg_s
         self.max_tilt_speed_deg_s = max_tilt_speed_deg_s
@@ -111,30 +112,88 @@ class RasterSearchController:
         self.tilt_limits_deg = tilt_limits_deg
         self.vertical_speed_fraction = vertical_speed_fraction
         self.boundary_margin_deg = boundary_margin_deg
+        self.initial_turnaround_deg = initial_turnaround_deg
         self.reset()
 
     def reset(self) -> None:
-        self._pan_direction = -1.0
+        self._pan_direction = 1.0
         self._tilt_direction = -1.0
-        self._initial_horizontal_sweep = True
+        self._survey_phase = 0
+
+    @staticmethod
+    def _rate_toward(current: float, target: float, maximum: float) -> float:
+        return _clamp(10.0 * (target - current), maximum)
 
     def command(self, camera_state: CameraState) -> CameraCommand:
         pan_min, pan_max = self.pan_limits_deg
         tilt_min, tilt_max = self.tilt_limits_deg
+        right_survey = min(pan_max - self.boundary_margin_deg, self.initial_turnaround_deg)
+        down_survey = max(tilt_min + self.boundary_margin_deg, -1.0)
+        lower_pan = max(pan_min, -0.5)
+        if self._survey_phase == 0:
+            if camera_state.pan_deg >= right_survey - 0.1:
+                self._survey_phase = 1
+            else:
+                return CameraCommand(
+                    self._rate_toward(
+                        camera_state.pan_deg,
+                        right_survey,
+                        self.max_pan_speed_deg_s,
+                    ),
+                    self._rate_toward(
+                        camera_state.tilt_deg,
+                        0.0,
+                        self.max_tilt_speed_deg_s,
+                    ),
+                )
+        if self._survey_phase == 1:
+            if (
+                camera_state.pan_deg <= lower_pan + 0.15
+                and camera_state.tilt_deg <= down_survey + 0.15
+            ):
+                self._survey_phase = 2
+            else:
+                return CameraCommand(
+                    self._rate_toward(
+                        camera_state.pan_deg,
+                        lower_pan,
+                        self.max_pan_speed_deg_s,
+                    ),
+                    self._rate_toward(
+                        camera_state.tilt_deg,
+                        down_survey,
+                        self.max_tilt_speed_deg_s,
+                    ),
+                )
+        if self._survey_phase == 2:
+            if camera_state.pan_deg <= pan_min + 0.15 and camera_state.tilt_deg >= 0.55:
+                self._survey_phase = 3
+                self._pan_direction = 1.0
+            else:
+                return CameraCommand(
+                    self._rate_toward(
+                        camera_state.pan_deg,
+                        pan_min,
+                        self.max_pan_speed_deg_s,
+                    ),
+                    self._rate_toward(
+                        camera_state.tilt_deg,
+                        0.75,
+                        self.max_tilt_speed_deg_s,
+                    ),
+                )
+
         if camera_state.pan_deg >= pan_max - self.boundary_margin_deg:
             self._pan_direction = -1.0
         elif camera_state.pan_deg <= pan_min + self.boundary_margin_deg:
             self._pan_direction = 1.0
-            self._initial_horizontal_sweep = False
         if camera_state.tilt_deg >= tilt_max - self.boundary_margin_deg:
             self._tilt_direction = -1.0
         elif camera_state.tilt_deg <= tilt_min + self.boundary_margin_deg:
             self._tilt_direction = 1.0
         return CameraCommand(
             self._pan_direction * self.max_pan_speed_deg_s,
-            0.0
-            if self._initial_horizontal_sweep
-            else self._tilt_direction
+            self._tilt_direction
             * self.max_tilt_speed_deg_s
             * self.vertical_speed_fraction,
         )

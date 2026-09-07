@@ -21,9 +21,13 @@ class SearchScope(StrEnum):
 class BeaconTrackerConfig:
     acquisition_frames: int = 3
     reacquisition_frames: int = 2
-    acquisition_radius_px: float = 24.0
-    tracking_gate_px: float = 45.0
-    local_reacquisition_radius_px: float = 90.0
+    # At the 7 deg/s survey rate the scene moves about 37 px per 30 Hz frame;
+    # leave enough room for the specified ±20 px jitter as well.
+    acquisition_radius_px: float = 65.0
+    # The gate must tolerate command reversals plus frame jitter while the
+    # image-space velocity estimate settles after acquisition.
+    tracking_gate_px: float = 160.0
+    local_reacquisition_radius_px: float = 180.0
     coast_frames: int = 5
     global_search_after_frames: int = 15
     minimum_confidence: float = 0.45
@@ -222,4 +226,3 @@ class BeaconTracker:
         confidence = self._last_confidence * (0.75 ** self._missed_frames)
         self.estimate = self._as_estimate(confidence)
         return self.estimate
-
