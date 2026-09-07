@@ -70,6 +70,9 @@ class QlyraxisApp:
     def _configure_style(self) -> None:
         style = self.ttk.Style()
         style.theme_use("clam")
+        input_background = "#172835"
+        input_disabled = "#101c26"
+        input_foreground = "#f4f8fb"
         style.configure(".", background="#0d1822", foreground="#e9f1f7")
         style.configure("TFrame", background="#0d1822")
         style.configure("Panel.TFrame", background="#111f2b")
@@ -79,12 +82,48 @@ class QlyraxisApp:
         style.configure("Metric.TLabel", font=("TkDefaultFont", 15, "bold"))
         style.configure("Accent.TButton", background="#16b8a6", foreground="#061311")
         style.map("Accent.TButton", background=[("active", "#29d3bf")])
-        style.configure(
-            "TCombobox",
-            fieldbackground="#172835",
-            background="#172835",
-            foreground="#e9f1f7",
-        )
+        for widget_style in ("Dark.TCombobox", "Dark.TSpinbox"):
+            style.configure(
+                widget_style,
+                fieldbackground=input_background,
+                background="#243746",
+                foreground=input_foreground,
+                arrowcolor=input_foreground,
+                bordercolor="#4d687a",
+                lightcolor="#4d687a",
+                darkcolor="#4d687a",
+                insertcolor=input_foreground,
+                padding=(6, 4),
+            )
+            style.map(
+                widget_style,
+                fieldbackground=[
+                    ("disabled", input_disabled),
+                    ("readonly", input_background),
+                    ("!disabled", input_background),
+                ],
+                foreground=[
+                    ("disabled", "#8da5b7"),
+                    ("readonly", input_foreground),
+                    ("!disabled", input_foreground),
+                ],
+                selectbackground=[
+                    ("readonly", input_background),
+                    ("!disabled", "#245669"),
+                ],
+                selectforeground=[
+                    ("readonly", input_foreground),
+                    ("!disabled", input_foreground),
+                ],
+                arrowcolor=[
+                    ("disabled", "#60788a"),
+                    ("!disabled", input_foreground),
+                ],
+            )
+        self.root.option_add("*TCombobox*Listbox.background", input_background)
+        self.root.option_add("*TCombobox*Listbox.foreground", input_foreground)
+        self.root.option_add("*TCombobox*Listbox.selectBackground", "#245669")
+        self.root.option_add("*TCombobox*Listbox.selectForeground", input_foreground)
 
     def _discover_scenarios(self) -> dict[str, Path]:
         root = resource_path("configs/scenarios")
@@ -135,6 +174,7 @@ class QlyraxisApp:
             textvariable=self.scenario_var,
             values=tuple(self.scenario_paths),
             state="readonly",
+            style="Dark.TCombobox",
         )
         selector.pack(fill="x", pady=(5, 12))
         selector.bind("<<ComboboxSelected>>", self._scenario_selected)
@@ -147,6 +187,7 @@ class QlyraxisApp:
             values=("clear", "haze", "fog", "rain", "low_light"),
             state="readonly",
             width=12,
+            style="Dark.TCombobox",
         )
         self._parameter_row(disturbances, 0, "Atmosphere", atmosphere)
         self._parameter_row(
@@ -154,7 +195,12 @@ class QlyraxisApp:
             1,
             "Noise sigma",
             self.ttk.Spinbox(
-                disturbances, from_=0, to=20, increment=1, textvariable=self.noise_var
+                disturbances,
+                from_=0,
+                to=20,
+                increment=1,
+                textvariable=self.noise_var,
+                style="Dark.TSpinbox",
             ),
         )
         self._parameter_row(
@@ -162,7 +208,12 @@ class QlyraxisApp:
             2,
             "Jitter px",
             self.ttk.Spinbox(
-                disturbances, from_=0, to=20, increment=1, textvariable=self.jitter_var
+                disturbances,
+                from_=0,
+                to=20,
+                increment=1,
+                textvariable=self.jitter_var,
+                style="Dark.TSpinbox",
             ),
         )
         self._parameter_row(
@@ -175,6 +226,7 @@ class QlyraxisApp:
                 to=20,
                 increment=0.5,
                 textvariable=self.turbulence_var,
+                style="Dark.TSpinbox",
             ),
         )
 
