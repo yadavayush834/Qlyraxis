@@ -15,6 +15,18 @@ class ChartScalingTests(unittest.TestCase):
         self.assertEqual(scale_series([], 100, 100), [])
         self.assertEqual(scale_series([1], 10, 10, padding=6), [])
 
+    def test_series_supports_fixed_scale_and_asymmetric_vertical_padding(self) -> None:
+        points = scale_series(
+            [0, 10],
+            width=200,
+            height=100,
+            padding=10,
+            maximum_value=20,
+            top_padding=20,
+            bottom_padding=10,
+        )
+        self.assertEqual(points, [(10.0, 90.0), (190.0, 55.0)])
+
 
 if __name__ == "__main__":
     unittest.main()

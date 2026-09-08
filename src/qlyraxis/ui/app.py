@@ -12,6 +12,7 @@ from time import perf_counter
 from typing import Any
 
 import cv2
+import numpy as np
 
 from qlyraxis.ai import OnnxCandidateVerifier, VerifiedBeaconDetector
 from qlyraxis.config import load_scenario
@@ -34,8 +35,8 @@ class QlyraxisApp:
         self.tk = tk
         self.ttk = ttk
         self.root.title("Qlyraxis FSOC Tracking Laboratory")
-        self.root.geometry("1180x760")
-        self.root.minsize(980, 680)
+        self.root.geometry("1360x840")
+        self.root.minsize(1120, 720)
         self.root.configure(bg="#071018")
         self._configure_style()
 
@@ -55,6 +56,7 @@ class QlyraxisApp:
         self.fps_var = tk.StringVar(value="0.0")
         self.error_var = tk.StringVar(value="N/A")
         self.retention_var = tk.StringVar(value="0.00%")
+        self.control_rate_var = tk.StringVar(value="30 Hz")
         self.command_var = tk.StringVar(value="pan +0.00  tilt +0.00 deg/s")
         self.atmosphere_var = tk.StringVar(value="clear")
         self.noise_var = tk.DoubleVar(value=0)
@@ -70,21 +72,93 @@ class QlyraxisApp:
     def _configure_style(self) -> None:
         style = self.ttk.Style()
         style.theme_use("clam")
+        font_family = "DejaVu Sans"
         input_background = "#172835"
         input_disabled = "#101c26"
         input_foreground = "#f4f8fb"
-        style.configure(".", background="#0d1822", foreground="#e9f1f7")
+        style.configure(
+            ".",
+            background="#0d1822",
+            foreground="#e9f1f7",
+            font=(font_family, 11),
+        )
         style.configure("TFrame", background="#0d1822")
         style.configure("Panel.TFrame", background="#111f2b")
         style.configure("TLabel", background="#0d1822", foreground="#d8e5ee")
-        style.configure("Title.TLabel", font=("TkDefaultFont", 20, "bold"))
-        style.configure("Muted.TLabel", foreground="#8da5b7")
-        style.configure("Metric.TLabel", font=("TkDefaultFont", 15, "bold"))
-        style.configure("Accent.TButton", background="#16b8a6", foreground="#061311")
-        style.map("Accent.TButton", background=[("active", "#29d3bf")])
+        style.configure(
+            "Title.TLabel",
+            font=(font_family, 30, "bold"),
+            foreground="#f5fbff",
+        )
+        style.configure(
+            "Eyebrow.TLabel",
+            font=(font_family, 10, "bold"),
+            foreground="#39d8c4",
+        )
+        style.configure("Muted.TLabel", foreground="#9db2c1")
+        style.configure(
+            "Section.TLabel",
+            font=(font_family, 14, "bold"),
+            foreground="#f5fbff",
+        )
+        style.configure(
+            "Source.TLabel",
+            font=(font_family, 11, "bold"),
+            foreground="#b8cad6",
+        )
+        style.configure(
+            "TButton",
+            font=(font_family, 11, "bold"),
+            padding=(12, 9),
+            background="#213544",
+            foreground="#edf7fc",
+            bordercolor="#486274",
+            lightcolor="#486274",
+            darkcolor="#486274",
+        )
+        style.map(
+            "TButton",
+            background=[("active", "#2b4658"), ("pressed", "#172835")],
+            foreground=[("disabled", "#718696"), ("!disabled", "#edf7fc")],
+        )
+        style.configure(
+            "Accent.TButton",
+            font=(font_family, 12, "bold"),
+            background="#20c7b3",
+            foreground="#041411",
+            bordercolor="#58ead8",
+            lightcolor="#58ead8",
+            darkcolor="#0b8f80",
+            padding=(14, 10),
+        )
+        style.map(
+            "Accent.TButton",
+            background=[("active", "#48ddcb"), ("pressed", "#10a996")],
+        )
+        style.configure(
+            "Export.TButton",
+            background="#243a4a",
+            foreground="#d8e8f2",
+            padding=(12, 9),
+        )
+        style.configure(
+            "TLabelframe",
+            background="#111f2b",
+            bordercolor="#385367",
+            lightcolor="#385367",
+            darkcolor="#385367",
+            relief="solid",
+        )
+        style.configure(
+            "TLabelframe.Label",
+            background="#111f2b",
+            foreground="#b9ccd8",
+            font=(font_family, 10, "bold"),
+        )
         for widget_style in ("Dark.TCombobox", "Dark.TSpinbox"):
             style.configure(
                 widget_style,
+                font=(font_family, 11),
                 fieldbackground=input_background,
                 background="#243746",
                 foreground=input_foreground,
@@ -93,7 +167,7 @@ class QlyraxisApp:
                 lightcolor="#4d687a",
                 darkcolor="#4d687a",
                 insertcolor=input_foreground,
-                padding=(6, 4),
+                padding=(8, 6),
             )
             style.map(
                 widget_style,
@@ -129,46 +203,125 @@ class QlyraxisApp:
         root = resource_path("configs/scenarios")
         return {path.stem: path for path in sorted(root.glob("*.json"))}
 
-    def _build_layout(self) -> None:
-        header = self.ttk.Frame(self.root, padding=(22, 16))
-        header.pack(fill="x")
-        self.ttk.Label(header, text="QLYRAXIS", style="Title.TLabel").pack(side="left")
-        self.ttk.Label(
-            header,
-            text="FSOC coarse alignment laboratory",
-            style="Muted.TLabel",
-        ).pack(side="left", padx=18)
-        self.ttk.Label(header, textvariable=self.status_var).pack(side="right")
+    def _create_brand_image(self):
+        """Render a crisp title even on systems exposing only Tk's tiny bitmap font."""
+        image = np.full((48, 270, 3), (34, 24, 13), dtype=np.uint8)
+        cv2.putText(
+            image,
+            "QLYRAXIS",
+            (0, 34),
+            cv2.FONT_HERSHEY_DUPLEX,
+            1.05,
+            (255, 251, 245),
+            2,
+            cv2.LINE_AA,
+        )
+        cv2.line(image, (1, 44), (205, 44), (180, 199, 32), 2, cv2.LINE_AA)
+        success, encoded = cv2.imencode(".png", image)
+        if not success:
+            return None
+        return self.tk.PhotoImage(data=base64.b64encode(encoded.tobytes()))
 
-        body = self.ttk.Frame(self.root, padding=(20, 0, 20, 18))
+    def _build_layout(self) -> None:
+        header = self.ttk.Frame(self.root, padding=(24, 16, 24, 14))
+        header.pack(fill="x")
+        status_stack = self.tk.Frame(header, bg="#0d1822")
+        status_stack.pack(side="right")
+        self.tk.Label(
+            status_stack,
+            text="SYSTEM STATUS",
+            bg="#0d1822",
+            fg="#9db2c1",
+            font=("DejaVu Sans", 9, "bold"),
+        ).pack(anchor="e", pady=(0, 4))
+        title_stack = self.tk.Frame(header, bg="#0d1822")
+        title_stack.pack(side="left", fill="x", expand=True)
+        self.brand_photo = self._create_brand_image()
+        self.tk.Label(
+            title_stack,
+            text="QLYRAXIS" if self.brand_photo is None else "",
+            image=self.brand_photo,
+            bg="#0d1822",
+            fg="#f5fbff",
+            font=("DejaVu Sans", 30, "bold"),
+        ).pack(anchor="w")
+        self.tk.Label(
+            title_stack,
+            text="AI-ASSISTED OPTICAL POINTING  •  ACQUISITION  •  TRACKING",
+            bg="#0d1822",
+            fg="#39d8c4",
+            font=("DejaVu Sans", 10, "bold"),
+        ).pack(anchor="w", pady=(1, 0))
+        self.status_badge = self.tk.Label(
+            status_stack,
+            textvariable=self.status_var,
+            bg="#17362f",
+            fg="#6ff1cf",
+            font=("DejaVu Sans", 11, "bold"),
+            padx=16,
+            pady=5,
+        )
+        self.status_badge.pack(anchor="e")
+
+        body = self.ttk.Frame(self.root, padding=(20, 0, 20, 20))
         body.pack(fill="both", expand=True)
-        body.columnconfigure(0, weight=3)
-        body.columnconfigure(1, weight=2)
+        body.columnconfigure(0, weight=7)
+        body.columnconfigure(1, weight=4, minsize=410)
         body.rowconfigure(0, weight=1)
 
-        visual = self.ttk.Frame(body, style="Panel.TFrame", padding=12)
-        visual.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
+        visual = self.ttk.Frame(body, style="Panel.TFrame", padding=14)
+        visual.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
         visual.rowconfigure(1, weight=1)
         visual.columnconfigure(0, weight=1)
+        feed_header = self.ttk.Frame(visual, style="Panel.TFrame")
+        feed_header.grid(row=0, column=0, sticky="ew", pady=(0, 10))
         self.ttk.Label(
-            visual, textvariable=self.source_var, style="Muted.TLabel"
-        ).grid(row=0, column=0, sticky="w", pady=(0, 10))
+            feed_header, text="LIVE OPTICAL FEED", style="Section.TLabel"
+        ).pack(side="left")
+        self.ttk.Label(
+            feed_header, textvariable=self.source_var, style="Source.TLabel"
+        ).pack(side="right")
         self.feed_label = self.tk.Label(
             visual,
-            text="Camera feed appears here",
+            text="OPTICAL FEED STANDBY\n\nSelect a scenario and press Start",
             bg="#03080c",
-            fg="#60788a",
-            font=("TkDefaultFont", 14),
+            fg="#7890a0",
+            font=("DejaVu Sans", 15, "bold"),
+            justify="center",
+            highlightthickness=1,
+            highlightbackground="#294153",
         )
         self.feed_label.grid(row=1, column=0, sticky="nsew")
+        legend = self.ttk.Frame(visual, style="Panel.TFrame")
+        legend.grid(row=2, column=0, sticky="ew", pady=(10, 0))
+        self.tk.Label(
+            legend,
+            text="●  DETECTION",
+            bg="#111f2b",
+            fg="#45e0ca",
+            font=("DejaVu Sans", 10, "bold"),
+        ).pack(side="left")
+        self.tk.Label(
+            legend,
+            text="＋  FILTERED ESTIMATE",
+            bg="#111f2b",
+            fg="#ffc857",
+            font=("DejaVu Sans", 10, "bold"),
+        ).pack(side="left", padx=20)
+        self.ttk.Label(
+            legend, text="30 Hz CLOSED LOOP", style="Muted.TLabel"
+        ).pack(side="right")
 
-        panel = self.ttk.Frame(body, style="Panel.TFrame", padding=18)
-        panel.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
+        panel = self.ttk.Frame(body, style="Panel.TFrame", padding=20)
+        panel.grid(row=0, column=1, sticky="nsew", padx=(8, 0))
         self._build_controls(panel)
         self._build_metrics(panel)
 
     def _build_controls(self, panel) -> None:
-        self.ttk.Label(panel, text="Scenario").pack(anchor="w")
+        self.ttk.Label(panel, text="MISSION CONTROL", style="Section.TLabel").pack(
+            anchor="w", pady=(0, 14)
+        )
+        self.ttk.Label(panel, text="SCENARIO", style="Muted.TLabel").pack(anchor="w")
         selector = self.ttk.Combobox(
             panel,
             textvariable=self.scenario_var,
@@ -176,11 +329,13 @@ class QlyraxisApp:
             state="readonly",
             style="Dark.TCombobox",
         )
-        selector.pack(fill="x", pady=(5, 12))
+        selector.pack(fill="x", pady=(6, 14))
         selector.bind("<<ComboboxSelected>>", self._scenario_selected)
 
-        disturbances = self.ttk.LabelFrame(panel, text="Disturbance overrides", padding=10)
-        disturbances.pack(fill="x", pady=(0, 12))
+        disturbances = self.ttk.LabelFrame(
+            panel, text="  ENVIRONMENT & DISTURBANCES  ", padding=(12, 10)
+        )
+        disturbances.pack(fill="x", pady=(0, 14))
         atmosphere = self.ttk.Combobox(
             disturbances,
             textvariable=self.atmosphere_var,
@@ -231,50 +386,101 @@ class QlyraxisApp:
         )
 
         row = self.ttk.Frame(panel, style="Panel.TFrame")
-        row.pack(fill="x", pady=(0, 12))
+        row.pack(fill="x", pady=(0, 9))
         self.start_button = self.ttk.Button(
             row, text="Start", style="Accent.TButton", command=self.toggle
         )
         self.start_button.pack(side="left", expand=True, fill="x")
         self.ttk.Button(row, text="Reset", command=self.reset).pack(
-            side="left", expand=True, fill="x", padx=8
+            side="left", expand=True, fill="x", padx=(9, 0)
         )
-        self.ttk.Button(row, text="Open recording", command=self.open_recording).pack(
-            side="left", expand=True, fill="x"
+        secondary_row = self.ttk.Frame(panel, style="Panel.TFrame")
+        secondary_row.pack(fill="x", pady=(0, 20))
+        self.ttk.Button(
+            secondary_row, text="Open recording", command=self.open_recording
+        ).pack(side="left", expand=True, fill="x")
+        self.ttk.Button(
+            secondary_row,
+            text="Export report",
+            command=self.export,
+            style="Export.TButton",
+        ).pack(side="left", expand=True, fill="x", padx=(9, 0))
+
+    def _metric_card(self, parent, row: int, column: int, label: str, variable):
+        card = self.tk.Frame(
+            parent,
+            bg="#172835",
+            highlightthickness=1,
+            highlightbackground="#29485a",
+            padx=12,
+            pady=8,
         )
-        self.ttk.Button(panel, text="Export performance report", command=self.export).pack(
-            fill="x", pady=(0, 18)
+        card.grid(row=row, column=column, sticky="nsew", padx=4, pady=4)
+        self.tk.Label(
+            card,
+            text=label.upper(),
+            bg="#172835",
+            fg="#8fa8b8",
+            font=("DejaVu Sans", 9, "bold"),
+        ).pack(anchor="w")
+        value_label = self.tk.Label(
+            card,
+            textvariable=variable,
+            bg="#172835",
+            fg="#f4f9fc",
+            font=("DejaVu Sans", 18, "bold"),
+            pady=2,
         )
+        value_label.pack(anchor="w")
+        return value_label
 
     def _build_metrics(self, panel) -> None:
-        self.ttk.Label(panel, text="Live telemetry", style="Metric.TLabel").pack(
-            anchor="w", pady=(0, 9)
+        heading = self.ttk.Frame(panel, style="Panel.TFrame")
+        heading.pack(fill="x", pady=(0, 5))
+        self.ttk.Label(heading, text="LIVE TELEMETRY", style="Section.TLabel").pack(
+            side="left"
+        )
+        self.ttk.Label(heading, text="REAL TIME", style="Eyebrow.TLabel").pack(
+            side="right"
         )
         grid = self.ttk.Frame(panel, style="Panel.TFrame")
         grid.pack(fill="x")
-        for row, (label, variable) in enumerate(
-            (
-                ("Tracker state", self.state_var),
-                ("Frame", self.frame_var),
-                ("Pipeline FPS", self.fps_var),
-                ("Centroid error", self.error_var),
-                ("Lock retention", self.retention_var),
-            )
-        ):
-            self.ttk.Label(grid, text=label, style="Muted.TLabel").grid(
-                row=row, column=0, sticky="w", pady=4
-            )
-            self.ttk.Label(grid, textvariable=variable).grid(
-                row=row, column=1, sticky="e", pady=4
-            )
+        self.state_value_label = self._metric_card(
+            grid, 0, 0, "Tracker state", self.state_var
+        )
+        self._metric_card(grid, 0, 1, "Frame", self.frame_var)
+        self._metric_card(grid, 1, 0, "Pipeline FPS", self.fps_var)
+        self._metric_card(grid, 1, 1, "Centroid error", self.error_var)
+        self._metric_card(grid, 2, 0, "Lock retention", self.retention_var)
+        self._metric_card(grid, 2, 1, "Control loop", self.control_rate_var)
         grid.columnconfigure(0, weight=1)
         grid.columnconfigure(1, weight=1)
-        self.ttk.Label(
-            panel, textvariable=self.command_var, style="Muted.TLabel"
-        ).pack(anchor="w", pady=(14, 8))
+        command_panel = self.tk.Frame(
+            panel,
+            bg="#0b151e",
+            highlightthickness=1,
+            highlightbackground="#263f50",
+            padx=10,
+            pady=7,
+        )
+        command_panel.pack(fill="x", pady=(10, 9))
+        self.tk.Label(
+            command_panel,
+            text="CAMERA COMMAND",
+            bg="#0b151e",
+            fg="#829aaa",
+            font=("DejaVu Sans", 9, "bold"),
+        ).pack(side="left")
+        self.tk.Label(
+            command_panel,
+            textvariable=self.command_var,
+            bg="#0b151e",
+            fg="#d8e7ef",
+            font=("DejaVu Sans Mono", 10, "bold"),
+        ).pack(side="right")
         self.chart = self.tk.Canvas(
             panel,
-            height=190,
+            height=150,
             background="#081018",
             highlightthickness=1,
             highlightbackground="#263948",
@@ -283,13 +489,36 @@ class QlyraxisApp:
         self.chart.bind("<Configure>", lambda _event: self._draw_chart())
 
     def _parameter_row(self, parent, row: int, label: str, widget) -> None:
-        self.ttk.Label(parent, text=label).grid(row=row, column=0, sticky="w", pady=3)
-        widget.grid(row=row, column=1, sticky="ew", padx=(10, 0), pady=3)
+        self.ttk.Label(parent, text=label).grid(row=row, column=0, sticky="w", pady=5)
+        widget.grid(row=row, column=1, sticky="ew", padx=(12, 0), pady=5)
         parent.columnconfigure(1, weight=1)
 
     def _scenario_selected(self, _event=None) -> None:
         self.reset()
         self._load_scenario_controls()
+
+    def _set_status(self, status: str) -> None:
+        palette = {
+            "READY": ("#17362f", "#6ff1cf"),
+            "LOADED": ("#173047", "#7cc8ff"),
+            "RUNNING": ("#123e38", "#75f3d4"),
+            "PAUSED": ("#463717", "#ffd36a"),
+            "COMPLETE": ("#2c2851", "#c9b8ff"),
+        }
+        background, foreground = palette.get(status, ("#293642", "#dbe8ef"))
+        self.status_var.set(status)
+        self.status_badge.configure(bg=background, fg=foreground)
+
+    def _set_tracker_state(self, state: str) -> None:
+        colors = {
+            "SEARCH": "#7cc8ff",
+            "ACQUIRE": "#ffd36a",
+            "TRACK": "#69edcb",
+            "COAST": "#ffb45f",
+            "REACQUIRE": "#ff8290",
+        }
+        self.state_var.set(state)
+        self.state_value_label.configure(fg=colors.get(state, "#f4f9fc"))
 
     def _load_scenario_controls(self) -> None:
         path = self.scenario_paths.get(self.scenario_var.get())
@@ -348,7 +577,7 @@ class QlyraxisApp:
                 configuration={"input": str(path), "ground_truth": False},
             )
             self.source_var.set(f"RECORDED  {Path(path).name}")
-            self.status_var.set("LOADED")
+            self._set_status("LOADED")
         except Exception as exc:
             messagebox.showerror("Could not open recording", str(exc))
             self.source = None
@@ -360,7 +589,7 @@ class QlyraxisApp:
         if self.running:
             self.running = False
             self.start_button.configure(text="Resume")
-            self.status_var.set("PAUSED")
+            self._set_status("PAUSED")
             return
         try:
             if self.system is None:
@@ -370,7 +599,7 @@ class QlyraxisApp:
             return
         self.running = True
         self.start_button.configure(text="Pause")
-        self.status_var.set("RUNNING")
+        self._set_status("RUNNING")
         self._tick()
 
     def _tick(self) -> None:
@@ -388,7 +617,7 @@ class QlyraxisApp:
             if frame is None:
                 self.running = False
                 self.start_button.configure(text="Start")
-                self.status_var.set("COMPLETE")
+                self._set_status("COMPLETE")
                 return
             result = self.system.step(frame)
             selected = self.system.tracker.selected_detection
@@ -420,6 +649,23 @@ class QlyraxisApp:
         self.after_id = self.root.after(delay_ms, self._tick)
 
     def _show_frame(self, image) -> None:
+        available_width = max(self.feed_label.winfo_width() - 2, 1)
+        available_height = max(self.feed_label.winfo_height() - 2, 1)
+        image_height, image_width = image.shape[:2]
+        if available_width > 100 and available_height > 100:
+            scale = min(
+                available_width / image_width,
+                available_height / image_height,
+            )
+            display_width = max(1, round(image_width * scale))
+            display_height = max(1, round(image_height * scale))
+            if (display_width, display_height) != (image_width, image_height):
+                interpolation = cv2.INTER_AREA if scale < 1.0 else cv2.INTER_LINEAR
+                image = cv2.resize(
+                    image,
+                    (display_width, display_height),
+                    interpolation=interpolation,
+                )
         success, encoded = cv2.imencode(".png", image)
         if not success:
             return
@@ -431,7 +677,7 @@ class QlyraxisApp:
         assert self.recorder is not None
         summary = self.recorder.summary()
         latest = self.recorder.rows[-1]
-        self.state_var.set(result.state.value.upper())
+        self._set_tracker_state(result.state.value.upper())
         self.frame_var.set(str(latest["frame_index"]))
         self.fps_var.set(f"{summary.processing_fps:.1f}")
         error = latest["tracking_error_px"]
@@ -452,19 +698,80 @@ class QlyraxisApp:
         width = max(self.chart.winfo_width(), 20)
         height = max(self.chart.winfo_height(), 20)
         self.chart.create_text(
-            12, 12, text="TRACKING ERROR HISTORY", anchor="nw", fill="#8199ab"
+            14,
+            12,
+            text="TRACKING ERROR • LAST 180 FRAMES",
+            anchor="nw",
+            fill="#9bb0be",
+            font=("DejaVu Sans", 8, "bold"),
+        )
+        self.chart.create_text(
+            width - 14,
+            12,
+            text="TARGET ≤ 10 PX",
+            anchor="ne",
+            fill="#39dac6",
+            font=("DejaVu Sans", 8, "bold"),
         )
         if self.recorder is None:
+            self.chart.create_text(
+                width / 2,
+                height / 2,
+                text="Awaiting telemetry",
+                fill="#506879",
+                font=("DejaVu Sans", 10),
+            )
             return
         values = [
             float(row["tracking_error_px"])
             for row in self.recorder.rows[-180:]
             if row["tracking_error_px"] is not None
         ]
-        points = scale_series(values, width, height, padding=18)
+        chart_maximum = max(max(values, default=0.0), 10.0)
+        plot_top = 34
+        plot_bottom = max(plot_top + 10, height - 20)
+        for fraction in (0.0, 0.5, 1.0):
+            y = plot_top + fraction * (plot_bottom - plot_top)
+            self.chart.create_line(
+                28, y, width - 12, y, fill="#172733", dash=(2, 4)
+            )
+        self.chart.create_text(
+            8,
+            plot_top,
+            text=f"{chart_maximum:.0f}",
+            anchor="w",
+            fill="#60798a",
+            font=("DejaVu Sans", 7),
+        )
+        self.chart.create_text(
+            8,
+            plot_bottom,
+            text="0",
+            anchor="w",
+            fill="#60798a",
+            font=("DejaVu Sans", 7),
+        )
+        points = scale_series(
+            values,
+            width,
+            height,
+            padding=28,
+            maximum_value=chart_maximum,
+            top_padding=plot_top,
+            bottom_padding=height - plot_bottom,
+        )
         if len(points) >= 2:
             flat = [coordinate for point in points for coordinate in point]
-            self.chart.create_line(*flat, fill="#36d6c2", width=2, smooth=True)
+            self.chart.create_line(*flat, fill="#39dac6", width=2, smooth=True)
+            last_x, last_y = points[-1]
+            self.chart.create_oval(
+                last_x - 3,
+                last_y - 3,
+                last_x + 3,
+                last_y + 3,
+                fill="#84ffeb",
+                outline="",
+            )
 
     def export(self) -> None:
         from tkinter import filedialog, messagebox
@@ -492,8 +799,8 @@ class QlyraxisApp:
         self.system = None
         self.recorder = None
         self.start_button.configure(text="Start")
-        self.status_var.set("READY")
-        self.state_var.set("SEARCH")
+        self._set_status("READY")
+        self._set_tracker_state("SEARCH")
         self.frame_var.set("0")
         self.fps_var.set("0.0")
         self.error_var.set("N/A")
@@ -502,7 +809,10 @@ class QlyraxisApp:
         self.chart.delete("all")
         if clear_display:
             self.photo = None
-            self.feed_label.configure(image="", text="Camera feed appears here")
+            self.feed_label.configure(
+                image="",
+                text="OPTICAL FEED STANDBY\n\nSelect a scenario and press Start",
+            )
             self.source_var.set("Select a scenario and press Start")
 
     def close(self) -> None:
@@ -511,15 +821,23 @@ class QlyraxisApp:
 
 
 def scale_series(
-    values: list[float], width: int, height: int, padding: int = 10
+    values: list[float],
+    width: int,
+    height: int,
+    padding: int = 10,
+    maximum_value: float | None = None,
+    top_padding: int | None = None,
+    bottom_padding: int | None = None,
 ) -> list[tuple[float, float]]:
-    if not values or width <= 2 * padding or height <= 2 * padding:
+    top = padding if top_padding is None else top_padding
+    bottom = padding if bottom_padding is None else bottom_padding
+    if not values or width <= 2 * padding or height <= top + bottom:
         return []
-    maximum = max(max(values), 1.0)
+    maximum = max(maximum_value or 0.0, max(values), 1.0)
     return [
         (
             padding + index * (width - 2 * padding) / max(len(values) - 1, 1),
-            height - padding - value / maximum * (height - 2 * padding),
+            height - bottom - value / maximum * (height - top - bottom),
         )
         for index, value in enumerate(values)
     ]
