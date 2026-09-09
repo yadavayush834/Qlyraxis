@@ -58,6 +58,7 @@ class QlyraxisApp:
         self.fps_var = tk.StringVar(value="0.0")
         self.error_var = tk.StringVar(value="N/A")
         self.retention_var = tk.StringVar(value="0.00%")
+        self.code_lock_var = tk.StringVar(value="CODELOCK OFF")
         self.command_var = tk.StringVar(value="pan +0.00  tilt +0.00 deg/s")
         self.atmosphere_var = tk.StringVar(value="clear")
         self.noise_var = tk.DoubleVar(value=0)
@@ -456,6 +457,29 @@ class QlyraxisApp:
         self._metric_card(grid, 2, 1, "Pipeline FPS", self.fps_var)
         grid.columnconfigure(0, weight=1)
         grid.columnconfigure(1, weight=1)
+        identity_panel = self.tk.Frame(
+            panel,
+            bg="#102b2b",
+            highlightthickness=1,
+            highlightbackground="#28645f",
+            padx=10,
+            pady=7,
+        )
+        identity_panel.pack(fill="x", pady=(10, 0))
+        self.tk.Label(
+            identity_panel,
+            text="OPTICAL IDENTITY",
+            bg="#102b2b",
+            fg="#6fe7d3",
+            font=("DejaVu Sans", 9, "bold"),
+        ).pack(side="left")
+        self.tk.Label(
+            identity_panel,
+            textvariable=self.code_lock_var,
+            bg="#102b2b",
+            fg="#f0fbf8",
+            font=("DejaVu Sans Mono", 9, "bold"),
+        ).pack(side="right")
         command_panel = self.tk.Frame(
             panel,
             bg="#0b151e",
@@ -464,7 +488,7 @@ class QlyraxisApp:
             padx=10,
             pady=7,
         )
-        command_panel.pack(fill="x", pady=(10, 9))
+        command_panel.pack(fill="x", pady=(7, 9))
         self.tk.Label(
             command_panel,
             text="CAMERA COMMAND",
@@ -698,6 +722,19 @@ class QlyraxisApp:
         error = latest["tracking_error_px"]
         self.error_var.set("N/A" if error is None else f"{float(error):.3f} px")
         self.retention_var.set(f"{summary.lock_retention_percent:.2f}%")
+        code_lock = getattr(self.system, "code_lock", None)
+        if code_lock is None:
+            self.code_lock_var.set("CODELOCK OFF")
+        else:
+            correlation = (
+                "--"
+                if code_lock.best_correlation is None
+                else f"{100.0 * code_lock.best_correlation:.0f}%"
+            )
+            self.code_lock_var.set(
+                f"{code_lock.identity}  {code_lock.identity_status}  "
+                f"CORR {correlation}  {code_lock.sample_count}/{code_lock.required_samples}"
+            )
         self.command_var.set(
             "recorded input"
             if command is None
@@ -822,6 +859,7 @@ class QlyraxisApp:
         self.fps_var.set("0.0")
         self.error_var.set("N/A")
         self.retention_var.set("0.00%")
+        self.code_lock_var.set("CODELOCK OFF")
         self.command_var.set("pan +0.00  tilt +0.00 deg/s")
         self.chart.delete("all")
         if clear_display:

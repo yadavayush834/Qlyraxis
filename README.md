@@ -8,7 +8,8 @@ reproducible performance reports.
 
 ## Current status
 
-All seven planned phases are complete. The repository contains configuration
+The original seven delivery phases plus the Robustness Lab and CodeLock identity
+phase are complete. The repository contains configuration
 validation, a deterministic virtual environment, image-only beacon acquisition,
 Kalman motion estimation, a complete tracking state machine, bounded PID pan-tilt
 control, local/global re-acquisition, and a deterministic disturbance pipeline.
@@ -104,6 +105,25 @@ is inside the safe operating envelope only when acquisition is at most 2 s, mean
 camera offset is at most 10 px, strict lock is at least 80%, and processing
 remains at least 20 FPS. Override the grid with `--noise-levels 0,4,8` and
 `--jitter-levels 0,5,10`.
+
+## Phase 9: CodeLock optical identity
+
+CodeLock verifies the designated FSOC terminal from its repeating intensity
+signature before releasing a candidate to the motion tracker. The bundled
+`codelock_decoy` scenario contains two visually identical moving lights: the
+registered `QLX-07` beacon begins dim while a complementary-code decoy begins
+bright. CodeLock collects 13 temporal samples, searches every cyclic phase,
+and locks only when normalized code correlation reaches 0.70.
+
+```bash
+qlyraxis track configs/scenarios/codelock_decoy.json --frames 300
+qlyraxis compare configs/scenarios/codelock_decoy.json --frames 600 \
+  --output-dir reports/codelock
+```
+
+For coded scenarios, `compare` keeps AI, maneuver adaptation, controller gains,
+scene, and seed identical on both sides; only CodeLock is disabled in the
+baseline. This makes the identity result a controlled A/B experiment.
 
 See `docs/architecture.md`, `docs/project-plan.md`, and
 `docs/phase7-delivery.md` for the design, local operation, and release workflow.

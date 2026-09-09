@@ -10,6 +10,7 @@ from qlyraxis.vision.detector import (
     BeaconDetectorConfig,
     DetectionDebug,
 )
+from qlyraxis.vision.codelock import CodeLockDetector
 
 __all__ = [
     "AcquisitionGate",
@@ -17,6 +18,6 @@ __all__ = [
     "AcquisitionState",
     "BeaconDetector",
     "BeaconDetectorConfig",
+    "CodeLockDetector",
     "DetectionDebug",
 ]
-

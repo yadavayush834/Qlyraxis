@@ -36,12 +36,14 @@ class SimulationEngine:
         trajectories: list[Trajectory],
         renderer: SceneRenderer,
         disturbances: DisturbancePipeline,
+        code_lock_config: dict[str, object] | None = None,
     ) -> None:
         self.clock = clock
         self.camera = camera
         self.trajectories = trajectories
         self.renderer = renderer
         self.disturbances = disturbances
+        self.code_lock_config = code_lock_config
 
     @classmethod
     def from_scenario(cls, scenario: Scenario) -> "SimulationEngine":
@@ -79,6 +81,26 @@ class SimulationEngine:
             trajectories=trajectories,
             renderer=renderer,
             disturbances=DisturbancePipeline(scenario.disturbances, seed),
+            code_lock_config=scenario.target.get("beacon_code"),
+        )
+
+    def _beacon_intensities(self, frame_index: int) -> tuple[int, ...] | None:
+        if self.code_lock_config is None:
+            return None
+        pattern = str(self.code_lock_config["pattern"])
+        symbol_frames = int(self.code_lock_config["symbol_frames"])
+        low = round(float(self.code_lock_config["low_intensity"]))
+        decoys = tuple(
+            str(value) for value in self.code_lock_config.get("decoy_patterns", [])
+        )
+        patterns = (pattern,) + tuple(
+            decoys[(index - 1) % len(decoys)] if decoys else pattern[::-1]
+            for index in range(1, len(self.trajectories))
+        )
+        symbol = frame_index // symbol_frames
+        return tuple(
+            255 if candidate[symbol % len(candidate)] == "1" else low
+            for candidate in patterns
         )
 
     def step(self, command: CameraCommand | None = None) -> SimulationSnapshot:
@@ -94,7 +116,11 @@ class SimulationEngine:
             else None
             for position in world_positions
         )
-        clean_image: NDArray = self.renderer.render_camera(world_positions, self.camera)
+        clean_image: NDArray = self.renderer.render_camera(
+            world_positions,
+            self.camera,
+            self._beacon_intensities(self.clock.frame_index),
+        )
         disturbed = self.disturbances.apply(
             clean_image,
             viewport_positions,

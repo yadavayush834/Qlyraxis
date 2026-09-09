@@ -51,14 +51,24 @@ class SceneRenderer:
         )
 
     def render_camera(
-        self, target_positions: Sequence[Point], camera: VirtualCamera
+        self,
+        target_positions: Sequence[Point],
+        camera: VirtualCamera,
+        intensities: Sequence[int] | None = None,
     ) -> NDArray[np.uint8]:
+        if intensities is not None and len(intensities) != len(target_positions):
+            raise ValueError("one beacon intensity is required for each target")
         width, height = self.viewport_px
         image = np.zeros((height, width), dtype=np.uint8)
-        for target_position in target_positions:
+        for index, target_position in enumerate(target_positions):
             viewport_position = camera.world_to_viewport(target_position)
             if camera.contains(target_position, margin_px=max(self.target_size_px)):
-                self._draw_beacon(image, viewport_position, self.beacon_intensity)
+                intensity = (
+                    self.beacon_intensity
+                    if intensities is None
+                    else int(np.clip(intensities[index], 0, 255))
+                )
+                self._draw_beacon(image, viewport_position, intensity)
         return image
 
     def render_overview(
@@ -80,4 +90,3 @@ class SceneRenderer:
             thickness=2,
         )
         return image
-

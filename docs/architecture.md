@@ -49,7 +49,7 @@ estimator, and controller modules must not import simulator state.
 | `config` | Load and validate scenarios | 1 |
 | `contracts` | Shared immutable data and protocols | 1 |
 | `simulation` | World, target motion, camera dynamics | 2 |
-| `vision` | Acquisition, candidate verification, centroiding | 3 |
+| `vision` | Acquisition, candidate verification, centroiding, CodeLock identity | 3/9 |
 | `tracking` | Filtering, prediction, state machine | 4 |
 | `control` | PID and optional predictive control | 4 |
 | `disturbances` | Seeded noise, atmosphere, blur, jitter, motion, and dropout | 5 |
@@ -105,4 +105,5 @@ velocity and adapts the Kalman state immediately after a maneuver.
 - OpenCV DNN by default and optional ONNX Runtime for CPU inference
 - Standard-library CSV, JSON, and self-contained HTML reporting
 - Deterministic baseline-versus-improved A/B reports with overlaid offset curves
+- Phase-synchronized temporal beacon-code correlation with decoy rejection
 - PyInstaller for the standalone application bundle

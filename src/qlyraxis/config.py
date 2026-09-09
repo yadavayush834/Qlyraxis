@@ -149,6 +149,44 @@ def validate_scenario(data: dict[str, Any]) -> Scenario:
         motion.get("heading_deg"), (int, float)
     ):
         raise ConfigError("target.motion.heading_deg must be a number")
+    beacon_code = target.get("beacon_code")
+    if beacon_code is not None:
+        if not isinstance(beacon_code, dict):
+            raise ConfigError("target.beacon_code must be an object")
+        _require_keys(
+            beacon_code,
+            {"identity", "pattern", "symbol_frames", "low_intensity"},
+            "target.beacon_code",
+        )
+        identity = beacon_code["identity"]
+        pattern = beacon_code["pattern"]
+        if not isinstance(identity, str) or not identity.strip():
+            raise ConfigError("target.beacon_code.identity must be non-empty")
+        if (
+            not isinstance(pattern, str)
+            or len(pattern) < 7
+            or set(pattern) != {"0", "1"}
+        ):
+            raise ConfigError(
+                "target.beacon_code.pattern must contain both 0 and 1 and be at least 7 bits"
+            )
+        if not isinstance(beacon_code["symbol_frames"], int) or not 1 <= beacon_code[
+            "symbol_frames"
+        ] <= 5:
+            raise ConfigError("target.beacon_code.symbol_frames must be between 1 and 5")
+        low_intensity = beacon_code["low_intensity"]
+        if not isinstance(low_intensity, (int, float)) or not 32 <= low_intensity <= 180:
+            raise ConfigError("target.beacon_code.low_intensity must be between 32 and 180")
+        decoy_patterns = beacon_code.get("decoy_patterns", [])
+        if not isinstance(decoy_patterns, list) or any(
+            not isinstance(item, str)
+            or len(item) != len(pattern)
+            or set(item) != {"0", "1"}
+            for item in decoy_patterns
+        ):
+            raise ConfigError(
+                "target.beacon_code.decoy_patterns must contain binary patterns matching the primary length"
+            )
 
     disturbances = data["disturbances"]
     _require_keys(

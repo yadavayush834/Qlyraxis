@@ -17,7 +17,7 @@ from qlyraxis.resources import resource_path
 from qlyraxis.simulation import SimulationEngine, SimulationSnapshot
 from qlyraxis.tracking.control import PanTiltController, RasterSearchController
 from qlyraxis.tracking.tracker import BeaconTracker, BeaconTrackerConfig, SearchScope
-from qlyraxis.vision import BeaconDetector
+from qlyraxis.vision import BeaconDetector, CodeLockDetector
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,6 +40,7 @@ class ClosedLoopSystem:
         search_controller: RasterSearchController,
         detector_backend: str = "classical",
         profile: str = "improved",
+        code_lock: CodeLockDetector | None = None,
     ) -> None:
         self.engine = engine
         self.detector = detector
@@ -48,6 +49,7 @@ class ClosedLoopSystem:
         self.search_controller = search_controller
         self.detector_backend = detector_backend
         self.profile = profile
+        self.code_lock = code_lock
         self.command = CameraCommand(0.0, 0.0)
         self._using_prediction = False
 
@@ -59,11 +61,13 @@ class ClosedLoopSystem:
         use_ai: bool = True,
         predictive_control: bool = True,
         adaptive_maneuvers: bool = True,
+        use_code_lock: bool = True,
     ) -> "ClosedLoopSystem":
         engine = SimulationEngine.from_scenario(scenario)
         camera_config = scenario.camera
         detector: Detector = BeaconDetector()
         detector_backend = "classical"
+        code_lock = None
         if use_ai:
             model_path = resource_path("models/beacon_verifier.onnx")
             if model_path.is_file():
@@ -81,6 +85,16 @@ class ClosedLoopSystem:
                     verification_interval_frames=3,
                 )
                 detector_backend = f"AI verified/{verifier.backend} at 10 Hz"
+        code_config = scenario.target.get("beacon_code")
+        if use_code_lock and isinstance(code_config, dict):
+            code_lock = CodeLockDetector(
+                detector,
+                pattern=str(code_config["pattern"]),
+                identity=str(code_config["identity"]),
+                symbol_frames=int(code_config["symbol_frames"]),
+            )
+            detector = code_lock
+            detector_backend += f" + CodeLock/{code_lock.identity}"
         controller = PanTiltController(
             viewport_px=tuple(float(value) for value in camera_config["viewport_px"]),
             fov_deg=tuple(float(value) for value in camera_config["fov_deg"]),
@@ -106,9 +120,13 @@ class ClosedLoopSystem:
             detector_backend=detector_backend,
             profile=(
                 "improved"
-                if use_ai and predictive_control and adaptive_maneuvers
+                if use_ai
+                and predictive_control
+                and adaptive_maneuvers
+                and (not isinstance(code_config, dict) or use_code_lock)
                 else "baseline"
             ),
+            code_lock=code_lock,
         )
 
     def step(self) -> ClosedLoopStep:
@@ -134,6 +152,12 @@ class ClosedLoopSystem:
                     simulation.camera_state.tilt_rate_deg_s,
                 ),
             )
+        elif self.code_lock is not None and self.code_lock.identity_status == "COLLECTING":
+            # Dwell on the current field of view long enough to decode identity;
+            # continuing the raster sweep would smear or discard code samples.
+            if self._using_prediction:
+                self.controller.reset()
+            self.command = CameraCommand(0.0, 0.0)
         else:
             if self._using_prediction:
                 self.controller.reset()
@@ -153,5 +177,7 @@ class ClosedLoopSystem:
         self.tracker.reset()
         self.controller.reset()
         self.search_controller.reset()
+        if self.code_lock is not None:
+            self.code_lock.reset()
         self.command = CameraCommand(0.0, 0.0)
         self._using_prediction = False

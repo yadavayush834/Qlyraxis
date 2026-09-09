@@ -1,0 +1,48 @@
+{
+  "name": "codelock_decoy",
+  "description": "Identity-aware acquisition with a visually identical moving decoy beacon.",
+  "camera": {
+    "world_size_px": [2000, 2000],
+    "viewport_px": [640, 480],
+    "fov_deg": [4.0, 3.0],
+    "update_hz": 30,
+    "control_update_hz": 30,
+    "max_pan_speed_deg_s": 7.0,
+    "max_tilt_speed_deg_s": 7.0,
+    "initial_position_px": [1000, 1000]
+  },
+  "target": {
+    "count": 2,
+    "shape": "circle",
+    "size_px": [9, 9],
+    "initial_location": [1000, 1000],
+    "motion": {"type": "circular", "radius_px": 180, "period_s": 18},
+    "beacon_code": {
+      "identity": "QLX-07",
+      "pattern": "0000011001010",
+      "symbol_frames": 1,
+      "low_intensity": 90,
+      "decoy_patterns": ["1111100110101"]
+    }
+  },
+  "disturbances": {
+    "noise": ["gaussian"],
+    "noise_std_px": 6,
+    "salt_pepper_fraction": 0,
+    "camera_jitter_max_px_frame": 2,
+    "atmosphere": "clear",
+    "atmosphere_strength": 0,
+    "turbulence_strength_px": 0.4,
+    "defocus_blur_px": 0,
+    "motion_blur_px": 0,
+    "platform_motion": "linear",
+    "platform_motion_max_px_frame": 1,
+    "dropout": {"enabled": false, "start_s": 0, "duration_s": 0}
+  },
+  "evaluation": {
+    "duration_s": 60,
+    "random_seed": 2616906,
+    "ground_truth_enabled": true,
+    "log_format": ["csv", "json"]
+  }
+}

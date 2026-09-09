@@ -96,3 +96,15 @@ the submitted benchmark report.
 This phase turns the simulator into a lightweight FSOC digital-twin
 certification tool: it discovers failure boundaries automatically instead of
 showing only hand-selected successful runs.
+
+## Phase 9 — CodeLock optical identity
+
+- [x] Configurable binary intensity signatures and symbol duration
+- [x] Multiple visually identical beacons with independent decoy codes
+- [x] Frame-index-aware cyclic correlation under missed detections
+- [x] Identity-gated acquisition with live GUI correlation telemetry
+- [x] Controlled CodeLock-off versus CodeLock-on performance evidence
+
+CodeLock requires no simulator coordinates: it associates image detections over
+time, samples local optical contrast, and verifies the registered terminal from
+the observed temporal signature alone.

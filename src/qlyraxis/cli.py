@@ -340,13 +340,19 @@ def _compare(args: argparse.Namespace, scenario) -> int:
     if frame_count <= 0:
         print("--frames must be positive or zero for scenario duration", file=sys.stderr)
         return 2
-    baseline = _run_benchmark(
-        scenario,
-        frame_count,
-        use_ai=False,
-        predictive_control=False,
-        adaptive_maneuvers=False,
-    )
+    if isinstance(scenario.target.get("beacon_code"), dict):
+        # Identity scenarios isolate CodeLock as the single experimental
+        # variable; AI, motion adaptation, and control remain identical.
+        baseline = _run_benchmark(scenario, frame_count, use_code_lock=False)
+    else:
+        baseline = _run_benchmark(
+            scenario,
+            frame_count,
+            use_ai=False,
+            predictive_control=False,
+            adaptive_maneuvers=False,
+            use_code_lock=False,
+        )
     improved = _run_benchmark(scenario, frame_count)
     output = Path(args.output_dir)
     baseline_paths = baseline.export(output / "baseline")
@@ -617,7 +623,7 @@ def main(argv: list[str] | None = None) -> int:
                 ):
                     locked_frames += 1
 
-            if truth is not None:
+            if truth is not None and acquired_at is not None:
                 pointing_errors.append(
                     math.dist(
                         truth,
@@ -676,6 +682,15 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Maximum centroid error: {max(centroid_errors):.3f} px")
         if pointing_errors:
             print(f"Mean camera pointing offset: {mean(pointing_errors):.3f} px")
+        if system.code_lock is not None:
+            correlation = system.code_lock.best_correlation
+            correlation_text = (
+                "N/A" if correlation is None else f"{100.0 * correlation:.2f}%"
+            )
+            print(
+                f"CodeLock identity: {system.code_lock.identity} "
+                f"({system.code_lock.identity_status}, correlation {correlation_text})"
+            )
         print(f"Pipeline throughput: {args.frames / elapsed:.1f} FPS")
         print(f"Diagnostic images: {output_dir}")
     return 0

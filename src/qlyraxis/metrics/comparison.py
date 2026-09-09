@@ -76,6 +76,7 @@ def _html_report(
         ("Mean camera offset", "average_tracking_error_px", "px", "lower"),
         ("P95 camera offset", "p95_tracking_error_px", "px", "lower"),
         ("Maximum camera offset", "maximum_tracking_error_px", "px", "lower"),
+        ("Mean centroid / identity error", "average_centroid_error_px", "px", "lower"),
         (f"Strict lock (≤{tolerance:g} px)", "lock_retention_percent", "%", "higher"),
         ("Acquisition time", "acquisition_time_s", "s", "lower"),
         ("Processing throughput", "processing_fps", "FPS", "higher"),

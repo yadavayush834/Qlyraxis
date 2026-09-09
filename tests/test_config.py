@@ -56,6 +56,18 @@ class ScenarioConfigTests(unittest.TestCase):
         with self.assertRaisesRegex(ConfigError, "must be boolean"):
             validate_scenario(data)
 
+    def test_invalid_codelock_pattern_is_rejected(self) -> None:
+        data = json.loads((SCENARIO_DIR / "codelock_decoy.json").read_text())
+        data["target"]["beacon_code"]["pattern"] = "1111111"
+        with self.assertRaisesRegex(ConfigError, "both 0 and 1"):
+            validate_scenario(data)
+
+    def test_codelock_decoy_pattern_length_must_match(self) -> None:
+        data = json.loads((SCENARIO_DIR / "codelock_decoy.json").read_text())
+        data["target"]["beacon_code"]["decoy_patterns"] = ["1010101"]
+        with self.assertRaisesRegex(ConfigError, "matching the primary length"):
+            validate_scenario(data)
+
 
 if __name__ == "__main__":
     unittest.main()
