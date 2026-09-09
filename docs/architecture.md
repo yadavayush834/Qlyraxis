@@ -38,7 +38,8 @@ estimator, and controller modules must not import simulator state.
 2. A `Detector` returns zero or more beacon candidates.
 3. A `Tracker` filters detections and predicts target motion.
 4. A state machine selects SEARCH, ACQUIRE, TRACK, COAST, or REACQUIRE behavior.
-5. A `Controller` converts image-plane error into constrained pan/tilt commands.
+5. A predictive controller combines image-plane error, target-velocity
+   feed-forward, and measured camera rate into constrained pan/tilt commands.
 6. A `MetricsSink` records inputs, estimates, commands, timing, and optional truth.
 
 ## Module boundaries
@@ -81,7 +82,8 @@ SEARCH --candidate--> ACQUIRE --confirmed--> TRACK
 ```
 
 Confidence thresholds and timeouts are configuration values shared by simulated
-and recorded inputs.
+and recorded inputs. A direction-change detector compares measured and predicted
+velocity and adapts the Kalman state immediately after a maneuver.
 
 ## Target performance envelope
 
@@ -89,7 +91,7 @@ and recorded inputs.
 |---|---:|---:|
 | Acquisition time | <= 2 s | < 1 s |
 | Re-acquisition time | <= 1 s | < 0.5 s |
-| Tracking error | <= 10 px | mean < 4 px; P95 < 8 px |
+| Camera pointing offset | <= 10 px | minimize mean and P95 |
 | Target loss | < 5% | < 2% |
 | Processing speed | >= 20 FPS | >= 40 FPS on reference CPU |
 | Camera update rate | >= 30 Hz | 30-60 Hz |
@@ -102,4 +104,5 @@ and recorded inputs.
 - A NumPy-trained compact CNN exported to ONNX
 - OpenCV DNN by default and optional ONNX Runtime for CPU inference
 - Standard-library CSV, JSON, and self-contained HTML reporting
+- Deterministic baseline-versus-improved A/B reports with overlaid offset curves
 - PyInstaller for the standalone application bundle

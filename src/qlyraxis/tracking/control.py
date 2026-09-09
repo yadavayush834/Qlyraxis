@@ -46,27 +46,46 @@ class PanTiltController:
         fov_deg: tuple[float, float],
         max_pan_speed_deg_s: float,
         max_tilt_speed_deg_s: float,
-        kp: float = 3.0,
-        ki: float = 0.45,
-        kd: float = 0.08,
+        kp: float = 8.0,
+        ki: float = 0.18,
+        kd: float = 0.04,
         integral_limit_deg_s: float = 3.0,
         deadband_px: float = 0.5,
+        feedforward_gain: float = 0.80,
+        feedforward_smoothing: float = 0.10,
+        max_feedforward_rate_deg_s: float = 4.0,
     ) -> None:
         self.viewport_px = viewport_px
         self.fov_deg = fov_deg
         self.max_pan_speed_deg_s = max_pan_speed_deg_s
         self.max_tilt_speed_deg_s = max_tilt_speed_deg_s
         self.deadband_px = deadband_px
+        if feedforward_gain < 0:
+            raise ValueError("feedforward gain cannot be negative")
+        if not 0.0 < feedforward_smoothing <= 1.0:
+            raise ValueError("feedforward smoothing must be in (0, 1]")
+        if max_feedforward_rate_deg_s <= 0:
+            raise ValueError("maximum feedforward rate must be positive")
+        self.feedforward_gain = feedforward_gain
+        self.feedforward_smoothing = feedforward_smoothing
+        self.max_feedforward_rate_deg_s = max_feedforward_rate_deg_s
         self._pan = _PIDAxis(kp, ki, kd, integral_limit_deg_s)
         self._tilt = _PIDAxis(kp, ki, kd, integral_limit_deg_s)
         self._last_timestamp_s: float | None = None
+        self._filtered_target_rate = (0.0, 0.0)
 
     def reset(self) -> None:
         self._pan.reset()
         self._tilt.reset()
         self._last_timestamp_s = None
+        self._filtered_target_rate = (0.0, 0.0)
 
-    def command(self, estimate: TrackEstimate, timestamp_s: float) -> CameraCommand:
+    def command(
+        self,
+        estimate: TrackEstimate,
+        timestamp_s: float,
+        camera_rates_deg_s: tuple[float, float] = (0.0, 0.0),
+    ) -> CameraCommand:
         dt_s = (
             1.0 / 30.0
             if self._last_timestamp_s is None
@@ -85,9 +104,40 @@ class PanTiltController:
             error_y_px = 0.0
         error_pan_deg = error_x_px * self.fov_deg[0] / self.viewport_px[0]
         error_tilt_deg = error_y_px * self.fov_deg[1] / self.viewport_px[1]
-        pan_rate = _clamp(self._pan.update(error_pan_deg, dt_s), self.max_pan_speed_deg_s)
+        image_pan_rate = (
+            estimate.velocity_x_px_s * self.fov_deg[0] / self.viewport_px[0]
+        )
+        image_tilt_rate = (
+            estimate.velocity_y_px_s * self.fov_deg[1] / self.viewport_px[1]
+        )
+        target_pan_rate = camera_rates_deg_s[0] + image_pan_rate
+        target_tilt_rate = camera_rates_deg_s[1] - image_tilt_rate
+        target_pan_rate = _clamp(
+            target_pan_rate,
+            self.max_feedforward_rate_deg_s,
+        )
+        target_tilt_rate = _clamp(
+            target_tilt_rate,
+            self.max_feedforward_rate_deg_s,
+        )
+        alpha = self.feedforward_smoothing
+        filtered_pan_rate = (
+            (1.0 - alpha) * self._filtered_target_rate[0]
+            + alpha * target_pan_rate
+        )
+        filtered_tilt_rate = (
+            (1.0 - alpha) * self._filtered_target_rate[1]
+            + alpha * target_tilt_rate
+        )
+        self._filtered_target_rate = (filtered_pan_rate, filtered_tilt_rate)
+        pan_rate = _clamp(
+            self.feedforward_gain * filtered_pan_rate
+            + self._pan.update(error_pan_deg, dt_s),
+            self.max_pan_speed_deg_s,
+        )
         tilt_rate = _clamp(
-            -self._tilt.update(error_tilt_deg, dt_s),
+            self.feedforward_gain * filtered_tilt_rate
+            - self._tilt.update(error_tilt_deg, dt_s),
             self.max_tilt_speed_deg_s,
         )
         return CameraCommand(pan_rate, tilt_rate)

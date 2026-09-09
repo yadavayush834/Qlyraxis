@@ -27,7 +27,19 @@ qlyraxis benchmark configs/scenarios/clear_straight.json \
 Omitting `--frames` runs the scenario's configured 60-second duration. The JSON
 contains the scenario configuration, summary, state counts, and all frame
 records. The CSV is convenient for spreadsheet analysis, while the HTML is a
-self-contained judge-facing report with an error chart.
+self-contained judge-facing report with a camera-offset chart. Tracking error is
+the beacon's offset from the optical axis; centroid accuracy is recorded
+separately. Strict lock counts only genuine detections within 10 pixels.
+
+Generate deterministic baseline-versus-improved evidence with:
+
+```bash
+qlyraxis compare configs/scenarios/noisy_circle.json --frames 600 \
+  --output-dir reports/noisy_circle_comparison
+```
+
+The comparison uses the same scenario and seed for both profiles, then overlays
+their camera-offset curves in one HTML report.
 
 ## Run the automated suite
 

@@ -106,6 +106,17 @@ class TrackerStateMachineTests(unittest.TestCase):
         tracker.update([detection(estimate.x_px + 1, estimate.y_px)], 6 / 30)
         self.assertEqual(tracker.state, TrackingState.TRACK)
 
+    def test_direction_reversal_updates_velocity_without_waiting_for_loss(self) -> None:
+        tracker = BeaconTracker()
+        tracker.update([detection(100, 100)], 0.0)
+        tracker.update([detection(110, 100)], 1 / 30)
+        tracker.update([detection(120, 100)], 2 / 30)
+        tracker.update([detection(105, 100)], 3 / 30)
+        self.assertEqual(tracker.state, TrackingState.TRACK)
+        self.assertTrue(tracker.turn_detected)
+        assert tracker.estimate is not None
+        self.assertLess(tracker.estimate.velocity_x_px_s, 0)
+
 
 class ControllerTests(unittest.TestCase):
     @staticmethod
@@ -124,6 +135,31 @@ class ControllerTests(unittest.TestCase):
         self.assertLessEqual(abs(command.pan_rate_deg_s), 5)
         self.assertLessEqual(abs(command.tilt_rate_deg_s), 5)
 
+    def test_velocity_feedforward_moves_camera_before_position_error_builds(self) -> None:
+        controller = PanTiltController(
+            (640, 480),
+            (4, 3),
+            10,
+            10,
+            kp=0,
+            ki=0,
+            kd=0,
+            feedforward_gain=1,
+            feedforward_smoothing=1,
+            max_feedforward_rate_deg_s=10,
+        )
+        moving = TrackEstimate(
+            320,
+            240,
+            160,
+            -160,
+            0.9,
+            TrackingState.TRACK,
+        )
+        command = controller.command(moving, 0.0)
+        self.assertGreater(command.pan_rate_deg_s, 0)
+        self.assertGreater(command.tilt_rate_deg_s, 0)
+
     def test_raster_search_begins_with_horizontal_sweep(self) -> None:
         search = RasterSearchController(5, 5, (-4.25, 4.25), (-4.75, 4.75))
         initial = CameraState((1000, 1000), 0, 0, 0, 0)
@@ -137,6 +173,13 @@ class ControllerTests(unittest.TestCase):
 
 
 class ClosedLoopIntegrationTests(unittest.TestCase):
+    def test_simulation_uses_ai_verified_detector_when_model_is_available(self) -> None:
+        scenario = load_scenario("configs/scenarios/clear_straight.json")
+        system = ClosedLoopSystem.from_scenario(scenario)
+        self.assertTrue(system.detector_backend.startswith("AI verified/"))
+        self.assertIn("10 Hz", system.detector_backend)
+        self.assertEqual(system.profile, "improved")
+
     def test_bundled_motion_paths_acquire_within_two_seconds(self) -> None:
         paths = [
             "configs/scenarios/clear_straight.json",

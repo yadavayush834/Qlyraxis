@@ -59,7 +59,12 @@ class SimulationEngine:
         )
         seed = int(scenario.evaluation["random_seed"])
         trajectories = [
-            build_trajectory(scenario.target, world_size, seed + index * 10_007)
+            build_trajectory(
+                scenario.target,
+                world_size,
+                seed + index * 10_007,
+                tracking_margin_px=(viewport[0] / 2.0, viewport[1] / 2.0),
+            )
             for index in range(int(scenario.target["count"]))
         ]
         renderer = SceneRenderer(

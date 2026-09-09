@@ -34,6 +34,7 @@ class StraightLineTrajectory:
     speed_px_s: float
     heading_deg: float
     world_size: Size
+    margin_px: Point = (0.0, 0.0)
 
     def __post_init__(self) -> None:
         _validate_world(self.world_size)
@@ -46,7 +47,12 @@ class StraightLineTrajectory:
         angle = math.radians(self.heading_deg)
         x = self.initial[0] + self.speed_px_s * math.cos(angle) * time_s
         y = self.initial[1] + self.speed_px_s * math.sin(angle) * time_s
-        return _reflect(x, self.world_size[0]), _reflect(y, self.world_size[1])
+        usable_width = self.world_size[0] - 2.0 * self.margin_px[0]
+        usable_height = self.world_size[1] - 2.0 * self.margin_px[1]
+        return (
+            self.margin_px[0] + _reflect(x - self.margin_px[0], usable_width),
+            self.margin_px[1] + _reflect(y - self.margin_px[1], usable_height),
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -101,6 +107,7 @@ class RandomTrajectory:
     turn_interval_s: float
     world_size: Size
     seed: int
+    margin_px: Point = (0.0, 0.0)
     _points: list[Point] = field(init=False, repr=False)
     _rng: random.Random = field(init=False, repr=False)
 
@@ -117,8 +124,16 @@ class RandomTrajectory:
             angle = self._rng.uniform(0.0, math.tau)
             speed = self._rng.uniform(0.35, 1.0) * self.max_speed_px_s
             distance = speed * self.turn_interval_s
-            next_x = _reflect(start_x + math.cos(angle) * distance, self.world_size[0])
-            next_y = _reflect(start_y + math.sin(angle) * distance, self.world_size[1])
+            usable_width = self.world_size[0] - 2.0 * self.margin_px[0]
+            usable_height = self.world_size[1] - 2.0 * self.margin_px[1]
+            next_x = self.margin_px[0] + _reflect(
+                start_x + math.cos(angle) * distance - self.margin_px[0],
+                usable_width,
+            )
+            next_y = self.margin_px[1] + _reflect(
+                start_y + math.sin(angle) * distance - self.margin_px[1],
+                usable_height,
+            )
             self._points.append((next_x, next_y))
 
     def position_at(self, time_s: float) -> Point:
@@ -136,21 +151,33 @@ class RandomTrajectory:
         )
 
 
-def _random_initial(world_size: Size, seed: int, margin_px: float = 50.0) -> Point:
+def _random_initial(
+    world_size: Size,
+    seed: int,
+    margin_px: Point = (50.0, 50.0),
+) -> Point:
     rng = random.Random(seed)
-    margin_x = min(margin_px, world_size[0] / 4.0)
-    margin_y = min(margin_px, world_size[1] / 4.0)
+    margin_x = min(margin_px[0], world_size[0] / 4.0)
+    margin_y = min(margin_px[1], world_size[1] / 4.0)
     return (
         rng.uniform(margin_x, world_size[0] - margin_x),
         rng.uniform(margin_y, world_size[1] - margin_y),
     )
 
 
-def _initial_from_config(value: object, world_size: Size, seed: int) -> Point:
+def _initial_from_config(
+    value: object,
+    world_size: Size,
+    seed: int,
+    margin_px: Point,
+) -> Point:
     if value == "random":
-        return _random_initial(world_size, seed)
+        return _random_initial(world_size, seed, margin_px)
     if isinstance(value, list) and len(value) == 2:
-        return float(value[0]), float(value[1])
+        return (
+            min(max(float(value[0]), margin_px[0]), world_size[0] - margin_px[0]),
+            min(max(float(value[1]), margin_px[1]), world_size[1] - margin_px[1]),
+        )
     raise ValueError("initial_location must be 'random' or an [x, y] pair")
 
 
@@ -158,6 +185,7 @@ def build_trajectory(
     target_config: dict[str, object],
     world_size: Size,
     seed: int,
+    tracking_margin_px: Point = (0.0, 0.0),
 ) -> Trajectory:
     """Construct a trajectory from a validated scenario target section."""
 
@@ -165,7 +193,16 @@ def build_trajectory(
     if not isinstance(motion, dict):
         raise ValueError("target.motion must be an object")
     motion_type = motion["type"]
-    initial = _initial_from_config(target_config["initial_location"], world_size, seed)
+    margin = (
+        min(max(tracking_margin_px[0], 0.0), world_size[0] / 2.0 - 1.0),
+        min(max(tracking_margin_px[1], 0.0), world_size[1] / 2.0 - 1.0),
+    )
+    initial = _initial_from_config(
+        target_config["initial_location"],
+        world_size,
+        seed,
+        margin,
+    )
 
     if motion_type == "straight_line":
         return StraightLineTrajectory(
@@ -173,13 +210,18 @@ def build_trajectory(
             speed_px_s=float(motion["speed_px_s"]),
             heading_deg=float(motion["heading_deg"]),
             world_size=world_size,
+            margin_px=margin,
         )
 
     rng = random.Random(seed)
     phase = rng.uniform(0.0, math.tau)
     center = (world_size[0] / 2.0, world_size[1] / 2.0)
     if motion_type == "circular":
-        radius = min(float(motion["radius_px"]), min(world_size) / 2.0)
+        radius = min(
+            float(motion["radius_px"]),
+            world_size[0] / 2.0 - margin[0],
+            world_size[1] / 2.0 - margin[1],
+        )
         return CircularTrajectory(
             center=center,
             radius_px=radius,
@@ -189,8 +231,14 @@ def build_trajectory(
     if motion_type == "figure_eight":
         return FigureEightTrajectory(
             center=center,
-            width_px=min(float(motion["width_px"]), world_size[0]),
-            height_px=min(float(motion["height_px"]), world_size[1]),
+            width_px=min(
+                float(motion["width_px"]),
+                world_size[0] - 2.0 * margin[0],
+            ),
+            height_px=min(
+                float(motion["height_px"]),
+                world_size[1] - 2.0 * margin[1],
+            ),
             period_s=float(motion["period_s"]),
             phase_rad=phase,
         )
@@ -201,5 +249,6 @@ def build_trajectory(
             turn_interval_s=float(motion["turn_interval_s"]),
             world_size=world_size,
             seed=seed,
+            margin_px=margin,
         )
     raise ValueError(f"unsupported trajectory: {motion_type}")

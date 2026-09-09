@@ -21,9 +21,15 @@ contract as the simulator. A compact candidate verifier is trained on synthetic
 patches, exported to ONNX, and executed on the CPU through OpenCV or optional
 ONNX Runtime.
 
-The final release adds a Tk desktop dashboard, live telemetry and error history,
+The final release adds a Tk desktop dashboard, live telemetry and camera-offset history,
 automatic CSV/JSON/HTML performance reports, five 60-second benchmark logs, a
 PyInstaller Linux application bundle, a technical report, and a user manual.
+The improved profile uses velocity feed-forward, maneuver adaptation, and the
+bundled AI candidate verifier. A deterministic comparison command runs that
+profile against the classical non-predictive baseline and draws both offset
+curves in one portable HTML report. In simulation, neural verification runs at
+10 Hz inside the 30 Hz control loop, while classical detection and tracking run
+on every frame; this preserves CPU headroom without disabling the AI stage.
 
 ## Quick start
 
@@ -41,6 +47,7 @@ qlyraxis track configs/scenarios/reacquisition_dropout.json --frames 660
 qlyraxis record configs/scenarios/fog_figure_eight.json work/fog.mp4 --frames 240
 qlyraxis analyze work/fog.mp4 --model models/beacon_verifier.onnx
 qlyraxis benchmark configs/scenarios/clear_straight.json --output-dir reports/clear
+qlyraxis compare configs/scenarios/jitter_random.json --frames 600 --output-dir reports/jitter-comparison
 qlyraxis gui
 python -m unittest discover -s tests -v
 ```
@@ -80,6 +87,12 @@ tests/                   Unit and closed-loop integration tests
 3. Every run stores its full configuration and random seed.
 4. Control commands respect pan, tilt, acceleration, and update-rate limits.
 5. Performance claims must be generated automatically from recorded runs.
+
+In reports and the GUI, **camera offset** is the distance between the beacon and
+the optical axis and is the primary tracking metric. **Beacon confidence** is a
+detector/verifier score, not a lock percentage. **Strict lock retention** counts
+only real detections in `TRACK` whose camera offset is at most 10 pixels; predicted
+`COAST` frames do not count as locked.
 
 See `docs/architecture.md`, `docs/project-plan.md`, and
 `docs/phase7-delivery.md` for the design, local operation, and release workflow.

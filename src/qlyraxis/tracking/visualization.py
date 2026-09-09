@@ -36,9 +36,12 @@ def annotate_tracking(
         cv2.circle(canvas, predicted, 9, (255, 0, 255), 1, cv2.LINE_AA)
         cv2.line(canvas, center, predicted, (100, 80, 100), 1, cv2.LINE_AA)
     state_color = (0, 255, 0) if state == TrackingState.TRACK else (0, 190, 255)
+    search_text = (
+        "OFF (LOCKED)" if search_scope == SearchScope.NONE else search_scope.upper()
+    )
     cv2.putText(
         canvas,
-        f"STATE: {state.upper()}  SEARCH: {search_scope.upper()}",
+        f"TRACKER: {state.upper()}  SEARCH MODE: {search_text}",
         (12, 24),
         cv2.FONT_HERSHEY_SIMPLEX,
         0.5,
@@ -50,7 +53,7 @@ def annotate_tracking(
         "RECORDED INPUT"
         if command is None
         else (
-            f"CMD pan {command.pan_rate_deg_s:+.2f}  "
+            f"CAMERA RATE  pan {command.pan_rate_deg_s:+.2f}  "
             f"tilt {command.tilt_rate_deg_s:+.2f} deg/s"
         )
     )

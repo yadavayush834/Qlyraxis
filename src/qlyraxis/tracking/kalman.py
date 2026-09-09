@@ -106,3 +106,23 @@ class ConstantVelocityKalman:
         )
         return self.state
 
+    def blend_velocity(
+        self,
+        velocity_x_px_s: float,
+        velocity_y_px_s: float,
+        weight: float = 0.65,
+    ) -> KalmanState:
+        """Pull velocity toward a measured manoeuvre without resetting position."""
+        if not self._initialized:
+            raise RuntimeError("Kalman filter is not initialized")
+        if not 0.0 <= weight <= 1.0:
+            raise ValueError("velocity blend weight must be in [0, 1]")
+        self._state[2, 0] = (
+            (1.0 - weight) * self._state[2, 0] + weight * velocity_x_px_s
+        )
+        self._state[3, 0] = (
+            (1.0 - weight) * self._state[3, 0] + weight * velocity_y_px_s
+        )
+        self._covariance[2, 2] = max(self._covariance[2, 2], 225.0)
+        self._covariance[3, 3] = max(self._covariance[3, 3], 225.0)
+        return self.state

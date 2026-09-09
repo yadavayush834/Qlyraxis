@@ -116,19 +116,37 @@ class VerifiedBeaconDetector:
         self,
         verifier: OnnxCandidateVerifier,
         detector: BeaconDetector | None = None,
+        ai_weight: float = 0.5,
+        verification_interval_frames: int = 1,
     ) -> None:
+        if not 0.0 <= ai_weight <= 1.0:
+            raise ValueError("AI weight must be in [0, 1]")
+        if verification_interval_frames < 1:
+            raise ValueError("verification interval must be positive")
         self.verifier = verifier
         self.detector = detector or BeaconDetector()
+        self.ai_weight = ai_weight
+        self.verification_interval_frames = verification_interval_frames
+        self._frame_counter = 0
         self.last_verified: tuple[VerifiedCandidate, ...] = ()
 
     def detect(self, frame: FramePacket) -> tuple[Detection, ...]:
         candidates = self.detector.detect(frame)
+        verify_now = self._frame_counter % self.verification_interval_frames == 0
+        self._frame_counter += 1
+        if not verify_now:
+            self.last_verified = ()
+            return candidates
         self.last_verified = self.verifier.verify(frame.image, candidates)
         return tuple(
             Detection(
                 item.detection.x_px,
                 item.detection.y_px,
-                min(1.0, 0.5 * item.detection.confidence + 0.5 * item.ai_score),
+                min(
+                    1.0,
+                    (1.0 - self.ai_weight) * item.detection.confidence
+                    + self.ai_weight * item.ai_score,
+                ),
                 item.detection.width_px,
                 item.detection.height_px,
             )

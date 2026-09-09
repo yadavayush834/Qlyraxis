@@ -45,7 +45,7 @@ def annotate_detections(
         )
         cv2.putText(
             canvas,
-            f"{detection.confidence:.2f}",
+            f"CONF {detection.confidence:.2f}",
             (center[0] + 7, center[1] - 7),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.4,
@@ -65,4 +65,3 @@ def annotate_detections(
             cv2.LINE_AA,
         )
     return canvas
-

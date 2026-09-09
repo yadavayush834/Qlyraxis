@@ -52,11 +52,12 @@ class QlyraxisApp:
         self.status_var = tk.StringVar(value="READY")
         self.source_var = tk.StringVar(value="Select a scenario and press Start")
         self.state_var = tk.StringVar(value="SEARCH")
+        self.search_mode_var = tk.StringVar(value="GLOBAL SCAN")
+        self.confidence_var = tk.StringVar(value="N/A")
         self.frame_var = tk.StringVar(value="0")
         self.fps_var = tk.StringVar(value="0.0")
         self.error_var = tk.StringVar(value="N/A")
         self.retention_var = tk.StringVar(value="0.00%")
-        self.control_rate_var = tk.StringVar(value="30 Hz")
         self.command_var = tk.StringVar(value="pan +0.00  tilt +0.00 deg/s")
         self.atmosphere_var = tk.StringVar(value="clear")
         self.noise_var = tk.DoubleVar(value=0)
@@ -448,11 +449,11 @@ class QlyraxisApp:
         self.state_value_label = self._metric_card(
             grid, 0, 0, "Tracker state", self.state_var
         )
-        self._metric_card(grid, 0, 1, "Frame", self.frame_var)
-        self._metric_card(grid, 1, 0, "Pipeline FPS", self.fps_var)
-        self._metric_card(grid, 1, 1, "Centroid error", self.error_var)
-        self._metric_card(grid, 2, 0, "Lock retention", self.retention_var)
-        self._metric_card(grid, 2, 1, "Control loop", self.control_rate_var)
+        self._metric_card(grid, 0, 1, "Search mode", self.search_mode_var)
+        self._metric_card(grid, 1, 0, "Beacon confidence", self.confidence_var)
+        self._metric_card(grid, 1, 1, "Camera offset", self.error_var)
+        self._metric_card(grid, 2, 0, "Strict lock ≤10 px", self.retention_var)
+        self._metric_card(grid, 2, 1, "Pipeline FPS", self.fps_var)
         grid.columnconfigure(0, weight=1)
         grid.columnconfigure(1, weight=1)
         command_panel = self.tk.Frame(
@@ -551,7 +552,9 @@ class QlyraxisApp:
             tuple(float(value) for value in scenario.camera["viewport_px"]),
             configuration=asdict(scenario),
         )
-        self.source_var.set(f"SIMULATION  {scenario.name}")
+        self.source_var.set(
+            f"SIMULATION  {scenario.name}  •  {self.system.detector_backend.upper()}"
+        )
 
     def open_recording(self) -> None:
         from tkinter import filedialog, messagebox
@@ -566,9 +569,11 @@ class QlyraxisApp:
         try:
             self.source = open_frame_source(path)
             detector: Any = BeaconDetector()
+            detector_backend = "CLASSICAL"
             model = resource_path("models/beacon_verifier.onnx")
             if model.exists():
                 detector = VerifiedBeaconDetector(OnnxCandidateVerifier(model), detector)
+                detector_backend = "AI VERIFIED"
             self.system = RecordedTrackingSystem(detector)
             self.mode = "recorded"
             self.recorder = PerformanceRecorder(
@@ -576,7 +581,9 @@ class QlyraxisApp:
                 (float(self.source.width), float(self.source.height)),
                 configuration={"input": str(path), "ground_truth": False},
             )
-            self.source_var.set(f"RECORDED  {Path(path).name}")
+            self.source_var.set(
+                f"RECORDED  {Path(path).name}  •  {detector_backend}"
+            )
             self._set_status("LOADED")
         except Exception as exc:
             messagebox.showerror("Could not open recording", str(exc))
@@ -678,6 +685,14 @@ class QlyraxisApp:
         summary = self.recorder.summary()
         latest = self.recorder.rows[-1]
         self._set_tracker_state(result.state.value.upper())
+        search_mode = result.search_scope.value.upper()
+        self.search_mode_var.set(
+            "OFF — LOCKED" if search_mode == "NONE" else f"{search_mode} SCAN"
+        )
+        selected = self.system.tracker.selected_detection
+        self.confidence_var.set(
+            "N/A" if selected is None else f"{selected.confidence:.2f} / 1.00"
+        )
         self.frame_var.set(str(latest["frame_index"]))
         self.fps_var.set(f"{summary.processing_fps:.1f}")
         error = latest["tracking_error_px"]
@@ -700,7 +715,7 @@ class QlyraxisApp:
         self.chart.create_text(
             14,
             12,
-            text="TRACKING ERROR • LAST 180 FRAMES",
+            text="CAMERA OFFSET • LAST 180 FRAMES",
             anchor="nw",
             fill="#9bb0be",
             font=("DejaVu Sans", 8, "bold"),
@@ -801,6 +816,8 @@ class QlyraxisApp:
         self.start_button.configure(text="Start")
         self._set_status("READY")
         self._set_tracker_state("SEARCH")
+        self.search_mode_var.set("GLOBAL SCAN")
+        self.confidence_var.set("N/A")
         self.frame_var.set("0")
         self.fps_var.set("0.0")
         self.error_var.set("N/A")

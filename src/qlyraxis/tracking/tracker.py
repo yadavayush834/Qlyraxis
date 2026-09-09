@@ -31,6 +31,9 @@ class BeaconTrackerConfig:
     coast_frames: int = 5
     global_search_after_frames: int = 15
     minimum_confidence: float = 0.45
+    adaptive_maneuvers: bool = True
+    turn_speed_threshold_px_s: float = 35.0
+    velocity_residual_threshold_px_s: float = 180.0
 
     def __post_init__(self) -> None:
         if self.acquisition_frames < 1 or self.reacquisition_frames < 1:
@@ -45,6 +48,10 @@ class BeaconTrackerConfig:
             raise ValueError("invalid loss-handling frame counts")
         if not 0 <= self.minimum_confidence <= 1:
             raise ValueError("minimum_confidence must be in [0, 1]")
+        if self.turn_speed_threshold_px_s <= 0:
+            raise ValueError("turn speed threshold must be positive")
+        if self.velocity_residual_threshold_px_s <= 0:
+            raise ValueError("velocity residual threshold must be positive")
 
 
 class BeaconTracker:
@@ -70,6 +77,72 @@ class BeaconTracker:
         self._reacquisition_age = 0
         self._reacquiring = False
         self._last_confidence = 0.0
+        self._last_detection: Detection | None = None
+        self._last_detection_timestamp_s: float | None = None
+        self._measured_velocity: tuple[float, float] | None = None
+        self.turn_detected = False
+
+    def _correct_with_maneuver_detection(
+        self,
+        detection: Detection,
+        timestamp_s: float,
+    ) -> None:
+        self.turn_detected = False
+        measured_velocity = None
+        if (
+            self._last_detection is not None
+            and self._last_detection_timestamp_s is not None
+        ):
+            dt_s = timestamp_s - self._last_detection_timestamp_s
+            if dt_s > 0:
+                raw_velocity = (
+                    (detection.x_px - self._last_detection.x_px) / dt_s,
+                    (detection.y_px - self._last_detection.y_px) / dt_s,
+                )
+                if self._measured_velocity is None:
+                    measured_velocity = raw_velocity
+                else:
+                    alpha = 0.45
+                    measured_velocity = (
+                        alpha * raw_velocity[0]
+                        + (1.0 - alpha) * self._measured_velocity[0],
+                        alpha * raw_velocity[1]
+                        + (1.0 - alpha) * self._measured_velocity[1],
+                    )
+                self._measured_velocity = measured_velocity
+
+        predicted = self.kalman.state
+        self.kalman.correct(detection.x_px, detection.y_px)
+        if self.config.adaptive_maneuvers and measured_velocity is not None:
+            measured_x, measured_y = measured_velocity
+            predicted_speed = math.hypot(
+                predicted.velocity_x_px_s,
+                predicted.velocity_y_px_s,
+            )
+            measured_speed = math.hypot(measured_x, measured_y)
+            dot_product = (
+                predicted.velocity_x_px_s * measured_x
+                + predicted.velocity_y_px_s * measured_y
+            )
+            velocity_residual = math.hypot(
+                measured_x - predicted.velocity_x_px_s,
+                measured_y - predicted.velocity_y_px_s,
+            )
+            reversed_direction = (
+                predicted_speed >= self.config.turn_speed_threshold_px_s
+                and measured_speed >= self.config.turn_speed_threshold_px_s
+                and dot_product < 0.0
+            )
+            self.turn_detected = (
+                reversed_direction
+                or velocity_residual
+                >= self.config.velocity_residual_threshold_px_s
+            )
+            if self.turn_detected:
+                self.kalman.blend_velocity(measured_x, measured_y)
+
+        self._last_detection = detection
+        self._last_detection_timestamp_s = timestamp_s
 
     @staticmethod
     def _distance(detection: Detection, x_px: float, y_px: float) -> float:
@@ -177,14 +250,20 @@ class BeaconTracker:
                 self.search_scope = SearchScope.NONE
                 self._confirmation_count = 1
                 self._reacquiring = False
+                self._last_detection = selected
+                self._last_detection_timestamp_s = timestamp_s
+                self._measured_velocity = None
             elif self.state == TrackingState.REACQUIRE:
                 self.kalman.reset(selected.x_px, selected.y_px)
                 self.state = TrackingState.ACQUIRE
                 self.search_scope = SearchScope.NONE
                 self._confirmation_count = 1
                 self._reacquiring = True
+                self._last_detection = selected
+                self._last_detection_timestamp_s = timestamp_s
+                self._measured_velocity = None
             else:
-                self.kalman.correct(selected.x_px, selected.y_px)
+                self._correct_with_maneuver_detection(selected, timestamp_s)
                 if self.state == TrackingState.ACQUIRE:
                     self._confirmation_count += 1
                     needed = (

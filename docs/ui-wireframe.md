@@ -30,9 +30,9 @@
 | Complete world                 | Virtual camera feed                     |
 | target + camera FOV            | detection + centroid + prediction       |
 +--------------------------------+-----------------------------------------+
-| LOCK: TRACKING | FPS: -- | error: -- px | pan: -- | tilt: --             |
+| TRACK | SEARCH: OFF | CONF: -- | CAMERA OFFSET: -- px | STRICT LOCK: --  |
 +--------------------------------------------------------------------------+
-| error/time chart                    | confidence/time chart               |
+| camera-offset/time chart            | pan/tilt command                    |
 +--------------------------------------------------------------------------+
 | [Pause] [Reset] [Inject dropout] [Export run]                            |
 +--------------------------------------------------------------------------+
@@ -42,11 +42,11 @@
 
 ```text
 +--------------------------------------------------------------------------+
-| Scenario / video | acquisition | reacquisition | RMSE | loss | FPS | pass |
+| Scenario | mean offset | P95 offset | strict lock | acquisition | FPS      |
 +--------------------------------------------------------------------------+
 | ...                                                                      |
 +--------------------------------------------------------------------------+
-| [Replay failure] [Export CSV] [Export JSON] [Generate report]            |
+| [Baseline vs improved graph] [Export CSV] [Export JSON] [Generate report]|
 +--------------------------------------------------------------------------+
 ```
 

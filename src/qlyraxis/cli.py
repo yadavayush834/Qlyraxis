@@ -69,6 +69,13 @@ def build_parser() -> argparse.ArgumentParser:
     benchmark.add_argument("scenario", help="path to scenario JSON")
     benchmark.add_argument("--frames", type=int, default=0)
     benchmark.add_argument("--output-dir", default="reports")
+    compare = subparsers.add_parser(
+        "compare",
+        help="run identical baseline and improved profiles with side-by-side graphs",
+    )
+    compare.add_argument("scenario", help="path to scenario JSON")
+    compare.add_argument("--frames", type=int, default=0)
+    compare.add_argument("--output-dir", default="reports/comparison")
     subparsers.add_parser("gui", help="launch the Qlyraxis desktop application")
     return parser
 
@@ -156,7 +163,10 @@ def _analyze_recording(args: argparse.Namespace) -> int:
                 acquired_at = frame.timestamp_s
             if acquired_at is not None:
                 post_acquisition_frames += 1
-                if result.state in {TrackingState.TRACK, TrackingState.COAST}:
+                if (
+                    result.state == TrackingState.TRACK
+                    and system.tracker.selected_detection is not None
+                ):
                     locked_frames += 1
     except (ValueError, cv2.error) as exc:
         print(f"Processing error: {exc}", file=sys.stderr)
@@ -195,7 +205,7 @@ def _analyze_recording(args: argparse.Namespace) -> int:
     print(f"Frames with verified detections: {detected_frames}")
     print(f"Acquisition time: {acquired_text}")
     print(f"Final tracking state: {result.state}")
-    print(f"Lock retention: {retention:.2f}%")
+    print(f"Observed TRACK detections (ground truth unavailable): {retention:.2f}%")
     print(f"Processing throughput: {processed / elapsed:.1f} FPS")
     print(f"Diagnostic image: {preview_path}")
     return 0
@@ -233,24 +243,28 @@ def _record_scenario(args: argparse.Namespace, scenario) -> int:
     return 0
 
 
-def _benchmark(args: argparse.Namespace, scenario) -> int:
+def _frame_count(args: argparse.Namespace, scenario) -> int:
+    return args.frames or round(
+        float(scenario.evaluation["duration_s"]) * float(scenario.camera["update_hz"])
+    )
+
+
+def _run_benchmark(scenario, frame_count: int, **profile_options):
     from dataclasses import asdict
     from time import perf_counter
 
     from qlyraxis.metrics import PerformanceRecorder
     from qlyraxis.tracking import ClosedLoopSystem
 
-    frame_count = args.frames or round(
-        float(scenario.evaluation["duration_s"]) * float(scenario.camera["update_hz"])
-    )
-    if frame_count <= 0:
-        print("--frames must be positive or zero for scenario duration", file=sys.stderr)
-        return 2
-    system = ClosedLoopSystem.from_scenario(scenario)
+    system = ClosedLoopSystem.from_scenario(scenario, **profile_options)
     recorder = PerformanceRecorder(
         scenario.name,
         tuple(float(value) for value in scenario.camera["viewport_px"]),
-        configuration=asdict(scenario),
+        configuration={
+            **asdict(scenario),
+            "tracking_profile": system.profile,
+            "detector_backend": system.detector_backend,
+        },
     )
     for _ in range(frame_count):
         started = perf_counter()
@@ -268,6 +282,15 @@ def _benchmark(args: argparse.Namespace, scenario) -> int:
             truth=snapshot.target_sensor_positions[0],
             processing_time_ms=process_ms,
         )
+    return recorder
+
+
+def _benchmark(args: argparse.Namespace, scenario) -> int:
+    frame_count = _frame_count(args, scenario)
+    if frame_count <= 0:
+        print("--frames must be positive or zero for scenario duration", file=sys.stderr)
+        return 2
+    recorder = _run_benchmark(scenario, frame_count)
     paths = recorder.export(args.output_dir)
     summary = recorder.summary()
     acquisition = (
@@ -278,13 +301,60 @@ def _benchmark(args: argparse.Namespace, scenario) -> int:
     print(f"Scenario: {summary.scenario}")
     print(f"Frames: {summary.frames}")
     print(f"Acquisition time: {acquisition}")
-    print(f"Lock retention: {summary.lock_retention_percent:.2f}%")
+    print(f"Strict lock retention (≤10 px): {summary.lock_retention_percent:.2f}%")
     if summary.average_tracking_error_px is not None:
-        print(f"Mean tracking error: {summary.average_tracking_error_px:.3f} px")
-        print(f"Maximum tracking error: {summary.maximum_tracking_error_px:.3f} px")
+        print(f"Mean camera offset: {summary.average_tracking_error_px:.3f} px")
+        print(f"P95 camera offset: {summary.p95_tracking_error_px:.3f} px")
+        print(f"Maximum camera offset: {summary.maximum_tracking_error_px:.3f} px")
     print(f"Processing throughput: {summary.processing_fps:.1f} FPS")
     for kind, path in paths.items():
         print(f"{kind.upper()} report: {path}")
+    return 0
+
+
+def _compare(args: argparse.Namespace, scenario) -> int:
+    from qlyraxis.metrics import export_profile_comparison
+
+    frame_count = _frame_count(args, scenario)
+    if frame_count <= 0:
+        print("--frames must be positive or zero for scenario duration", file=sys.stderr)
+        return 2
+    baseline = _run_benchmark(
+        scenario,
+        frame_count,
+        use_ai=False,
+        predictive_control=False,
+        adaptive_maneuvers=False,
+    )
+    improved = _run_benchmark(scenario, frame_count)
+    output = Path(args.output_dir)
+    baseline_paths = baseline.export(output / "baseline")
+    improved_paths = improved.export(output / "improved")
+    comparison_paths = export_profile_comparison(
+        scenario.name, baseline, improved, output
+    )
+    before = baseline.summary()
+    after = improved.summary()
+    print(f"Scenario: {scenario.name} ({frame_count} frames per profile)")
+    print(
+        "Mean camera offset: "
+        f"{before.average_tracking_error_px:.2f} → "
+        f"{after.average_tracking_error_px:.2f} px"
+    )
+    print(
+        "P95 camera offset: "
+        f"{before.p95_tracking_error_px:.2f} → "
+        f"{after.p95_tracking_error_px:.2f} px"
+    )
+    print(
+        "Strict lock retention: "
+        f"{before.lock_retention_percent:.2f}% → "
+        f"{after.lock_retention_percent:.2f}%"
+    )
+    print(f"Comparison report: {comparison_paths['html']}")
+    print(f"Comparison data: {comparison_paths['json']}")
+    print(f"Baseline evidence: {baseline_paths['json']}")
+    print(f"Improved evidence: {improved_paths['json']}")
     return 0
 
 
@@ -402,6 +472,8 @@ def main(argv: list[str] | None = None) -> int:
         return _record_scenario(args, scenario)
     elif args.command == "benchmark":
         return _benchmark(args, scenario)
+    elif args.command == "compare":
+        return _compare(args, scenario)
     else:
         if args.frames <= 0:
             print("--frames must be positive", file=sys.stderr)
@@ -434,12 +506,26 @@ def main(argv: list[str] | None = None) -> int:
             estimate = result.estimate
             if result.state == TrackingState.TRACK and acquired_at is None:
                 acquired_at = snapshot.frame.timestamp_s
+            truth = snapshot.target_sensor_positions[0]
             if acquired_at is not None:
                 post_acquisition_frames += 1
-                if result.state in {TrackingState.TRACK, TrackingState.COAST}:
+                selected = system.tracker.selected_detection
+                if (
+                    result.state == TrackingState.TRACK
+                    and selected is not None
+                    and truth is not None
+                    and math.dist(
+                        truth,
+                        (
+                            float(camera_config["viewport_px"][0]) / 2.0,
+                            float(camera_config["viewport_px"][1]) / 2.0,
+                        ),
+                    )
+                    <= 10.0
+                    and math.dist((selected.x_px, selected.y_px), truth) <= 10.0
+                ):
                     locked_frames += 1
 
-            truth = snapshot.target_sensor_positions[0]
             if truth is not None:
                 pointing_errors.append(
                     math.dist(
@@ -493,7 +579,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Processed frames: {args.frames}")
         print(f"Acquisition time: {acquisition_text}")
         print(f"Final tracking state: {result.state}")
-        print(f"Lock retention: {retention:.2f}%")
+        print(f"Strict lock retention (≤10 px): {retention:.2f}%")
         if centroid_errors:
             print(f"Mean centroid error: {mean(centroid_errors):.3f} px")
             print(f"Maximum centroid error: {max(centroid_errors):.3f} px")

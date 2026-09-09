@@ -128,6 +128,15 @@ class RendererAndEngineTests(unittest.TestCase):
         self.assertEqual(engine.renderer.world_size_px, (2000, 2000))
         self.assertEqual(snapshot.target_viewport_positions[0], (320.0, 240.0))
 
+    def test_moving_target_stays_inside_camera_pointable_world_area(self) -> None:
+        engine = SimulationEngine.from_scenario(
+            load_scenario("configs/scenarios/clear_straight.json")
+        )
+        positions = [engine.step().target_world_positions[0] for _ in range(2400)]
+        self.assertTrue(
+            all(320 <= x <= 1680 and 240 <= y <= 1760 for x, y in positions)
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

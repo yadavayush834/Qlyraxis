@@ -24,6 +24,9 @@ class PerformanceSummary:
     acquisition_time_s: float | None
     average_tracking_error_px: float | None
     maximum_tracking_error_px: float | None
+    p95_tracking_error_px: float | None
+    average_centroid_error_px: float | None
+    maximum_centroid_error_px: float | None
     average_pointing_offset_px: float | None
     lock_retention_percent: float
     target_loss_percent: float
@@ -49,6 +52,7 @@ class PerformanceRecorder:
         "estimate_y_px",
         "truth_x_px",
         "truth_y_px",
+        "centroid_error_px",
         "tracking_error_px",
         "pointing_offset_px",
         "pan_rate_deg_s",
@@ -61,10 +65,14 @@ class PerformanceRecorder:
         scenario_name: str,
         viewport_px: tuple[float, float],
         configuration: dict[str, Any] | None = None,
+        lock_tolerance_px: float = 10.0,
     ) -> None:
         self.scenario_name = scenario_name
         self.viewport_px = viewport_px
         self.configuration = configuration or {}
+        if lock_tolerance_px <= 0:
+            raise ValueError("lock tolerance must be positive")
+        self.lock_tolerance_px = lock_tolerance_px
         self.rows: list[dict[str, Any]] = []
         self._acquired_at: float | None = None
         self._loss_started_at: float | None = None
@@ -101,13 +109,13 @@ class PerformanceRecorder:
             self._reacquisition_times.append(timestamp_s - self._loss_started_at)
             self._loss_started_at = None
 
-        tracking_error = None
+        centroid_error = None
         pointing_offset = None
         if truth is not None:
             center = (self.viewport_px[0] / 2.0, self.viewport_px[1] / 2.0)
             pointing_offset = math.dist(truth, center)
             if selected is not None:
-                tracking_error = math.dist((selected.x_px, selected.y_px), truth)
+                centroid_error = math.dist((selected.x_px, selected.y_px), truth)
         self.rows.append(
             {
                 "frame_index": frame_index,
@@ -120,7 +128,11 @@ class PerformanceRecorder:
                 "estimate_y_px": None if estimate is None else estimate.y_px,
                 "truth_x_px": None if truth is None else truth[0],
                 "truth_y_px": None if truth is None else truth[1],
-                "tracking_error_px": tracking_error,
+                "centroid_error_px": centroid_error,
+                # The operational tracking error is the pointing error: how far
+                # the beacon is from the camera optical axis. Keep
+                # pointing_offset_px as an explicit compatibility alias.
+                "tracking_error_px": pointing_offset,
                 "pointing_offset_px": pointing_offset,
                 "pan_rate_deg_s": None if command is None else command.pan_rate_deg_s,
                 "tilt_rate_deg_s": None if command is None else command.tilt_rate_deg_s,
@@ -133,24 +145,36 @@ class PerformanceRecorder:
         if not self.rows:
             raise ValueError("cannot summarize an empty performance log")
         processing_times = [float(row["processing_time_ms"]) for row in self.rows]
-        tracking_errors = [
-            float(row["tracking_error_px"])
-            for row in self.rows
-            if row["tracking_error_px"] is not None
-        ]
-        pointing_offsets = [
-            float(row["pointing_offset_px"])
-            for row in self.rows
-            if row["pointing_offset_px"] is not None
-        ]
         post_acquisition = [
             row
             for row in self.rows
             if self._acquired_at is not None
             and float(row["timestamp_s"]) >= self._acquired_at
         ]
+        tracking_errors = [
+            float(row["tracking_error_px"])
+            for row in post_acquisition
+            if row["tracking_error_px"] is not None
+        ]
+        centroid_errors = [
+            float(row["centroid_error_px"])
+            for row in post_acquisition
+            if row["centroid_error_px"] is not None
+        ]
+        truth_available = any(row["truth_x_px"] is not None for row in self.rows)
         locked = sum(
-            row["state"] in {TrackingState.TRACK.value, TrackingState.COAST.value}
+            row["state"] == TrackingState.TRACK.value
+            and row["selected_x_px"] is not None
+            and (
+                (
+                    row["pointing_offset_px"] is not None
+                    and float(row["pointing_offset_px"]) <= self.lock_tolerance_px
+                    and row["centroid_error_px"] is not None
+                    and float(row["centroid_error_px"]) <= self.lock_tolerance_px
+                )
+                if truth_available
+                else True
+            )
             for row in post_acquisition
         )
         retention = 100.0 * locked / len(post_acquisition) if post_acquisition else 0.0
@@ -168,8 +192,17 @@ class PerformanceRecorder:
                 mean(tracking_errors) if tracking_errors else None
             ),
             maximum_tracking_error_px=(max(tracking_errors) if tracking_errors else None),
+            p95_tracking_error_px=(
+                _percentile(tracking_errors, 0.95) if tracking_errors else None
+            ),
+            average_centroid_error_px=(
+                mean(centroid_errors) if centroid_errors else None
+            ),
+            maximum_centroid_error_px=(
+                max(centroid_errors) if centroid_errors else None
+            ),
             average_pointing_offset_px=(
-                mean(pointing_offsets) if pointing_offsets else None
+                mean(tracking_errors) if tracking_errors else None
             ),
             lock_retention_percent=retention,
             target_loss_percent=100.0 - retention,
@@ -223,9 +256,11 @@ class PerformanceRecorder:
             ("Duration", "simulation_duration_s", " s"),
             ("Throughput", "processing_fps", " FPS"),
             ("Acquisition", "acquisition_time_s", " s"),
-            ("Mean tracking error", "average_tracking_error_px", " px"),
-            ("Maximum tracking error", "maximum_tracking_error_px", " px"),
-            ("Lock retention", "lock_retention_percent", "%"),
+            ("Mean camera offset", "average_tracking_error_px", " px"),
+            ("P95 camera offset", "p95_tracking_error_px", " px"),
+            ("Maximum camera offset", "maximum_tracking_error_px", " px"),
+            ("Mean centroid error", "average_centroid_error_px", " px"),
+            ("Strict lock retention (≤10 px)", "lock_retention_percent", "%"),
             ("Maximum processing time", "maximum_processing_time_ms", " ms"),
         )
         rows = []
@@ -249,9 +284,19 @@ svg{{width:100%;height:auto;background:#071018;border-radius:8px}} .line{{fill:n
 footer{{color:#7890a4;margin:26px 0;font-size:13px}}</style></head>
 <body><main><h1>{title}</h1><p class="sub">Automatically generated deterministic benchmark report</p>
 <section><h2>Run summary</h2><table>{''.join(rows)}</table></section>
-<section><h2>Tracking error by measured frame</h2>{chart}</section>
+<section><h2>Camera pointing offset by frame</h2>{chart}</section>
 <section><h2>State counts</h2><p>{html.escape(json.dumps(payload['state_counts'], sort_keys=True))}</p></section>
 <footer>Generated by Qlyraxis PS 26169</footer></main></body></html>"""
+
+
+def _percentile(values: Sequence[float], fraction: float) -> float:
+    if not values:
+        raise ValueError("cannot calculate a percentile of no values")
+    if not 0.0 <= fraction <= 1.0:
+        raise ValueError("percentile fraction must be in [0, 1]")
+    ordered = sorted(values)
+    index = round((len(ordered) - 1) * fraction)
+    return float(ordered[index])
 
 
 def _format_number(value: Any) -> str:
@@ -272,7 +317,7 @@ def _sparkline(values: Sequence[float], width: int, height: int) -> str:
         points.append(f"{x_px:.1f},{y_px:.1f}")
     label = html.escape(f"Peak {maximum:.3f} px")
     return (
-        f'<svg viewBox="0 0 {width} {height}" role="img" aria-label="Tracking error">'
+        f'<svg viewBox="0 0 {width} {height}" role="img" aria-label="Camera pointing offset">'
         f'<polyline class="line" points="{" ".join(points)}"/>'
         f'<text x="12" y="20" fill="#9eb2c5">{label}</text></svg>'
     )
