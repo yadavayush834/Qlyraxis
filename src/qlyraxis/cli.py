@@ -9,6 +9,16 @@ from pathlib import Path
 from qlyraxis.config import ConfigError, load_scenario
 
 
+def _float_grid(value: str) -> tuple[float, ...]:
+    try:
+        levels = tuple(float(item.strip()) for item in value.split(","))
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("levels must be comma-separated numbers") from exc
+    if not levels or any(level < 0 for level in levels):
+        raise argparse.ArgumentTypeError("levels must contain non-negative numbers")
+    return tuple(dict.fromkeys(levels))
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="qlyraxis",
@@ -76,6 +86,17 @@ def build_parser() -> argparse.ArgumentParser:
     compare.add_argument("scenario", help="path to scenario JSON")
     compare.add_argument("--frames", type=int, default=0)
     compare.add_argument("--output-dir", default="reports/comparison")
+    stress = subparsers.add_parser(
+        "stress-test",
+        help="map the tracking safe-operating envelope across noise and jitter",
+    )
+    stress.add_argument("scenario", help="path to base scenario JSON")
+    stress.add_argument("--frames", type=int, default=180)
+    stress.add_argument("--noise-levels", type=_float_grid, default=(0.0, 8.0, 16.0))
+    stress.add_argument(
+        "--jitter-levels", type=_float_grid, default=(0.0, 5.0, 10.0, 20.0)
+    )
+    stress.add_argument("--output-dir", default="reports/stress")
     subparsers.add_parser("gui", help="launch the Qlyraxis desktop application")
     return parser
 
@@ -358,6 +379,74 @@ def _compare(args: argparse.Namespace, scenario) -> int:
     return 0
 
 
+def _stress_test(args: argparse.Namespace, scenario) -> int:
+    from copy import deepcopy
+    from dataclasses import replace
+
+    from qlyraxis.metrics import StressCell, export_stress_report
+
+    if args.frames <= 0:
+        print("--frames must be positive", file=sys.stderr)
+        return 2
+    cells = []
+    total = len(args.noise_levels) * len(args.jitter_levels)
+    completed = 0
+    for noise in args.noise_levels:
+        for jitter in args.jitter_levels:
+            disturbances = deepcopy(scenario.disturbances)
+            disturbances["noise_std_px"] = float(noise)
+            disturbances["camera_jitter_max_px_frame"] = float(jitter)
+            if noise > 0 and not disturbances["noise"]:
+                disturbances["noise"] = ["gaussian"]
+            variant = replace(
+                scenario,
+                name=f"{scenario.name}_noise_{noise:g}_jitter_{jitter:g}",
+                disturbances=disturbances,
+            )
+            recorder = _run_benchmark(variant, args.frames)
+            summary = recorder.summary()
+            acquired = summary.acquisition_time_s
+            mean_offset = summary.average_tracking_error_px
+            passed = (
+                acquired is not None
+                and acquired <= 2.0
+                and mean_offset is not None
+                and mean_offset <= 10.0
+                and summary.lock_retention_percent >= 80.0
+                and summary.processing_fps >= 20.0
+            )
+            cells.append(
+                StressCell(
+                    noise_sigma=float(noise),
+                    jitter_px_frame=float(jitter),
+                    acquisition_time_s=acquired,
+                    mean_camera_offset_px=mean_offset,
+                    p95_camera_offset_px=summary.p95_tracking_error_px,
+                    strict_lock_percent=summary.lock_retention_percent,
+                    processing_fps=summary.processing_fps,
+                    passed=passed,
+                )
+            )
+            completed += 1
+            offset_text = "N/A" if mean_offset is None else f"{mean_offset:.2f}px"
+            print(
+                f"[{completed}/{total}] noise σ={noise:g}, jitter={jitter:g}: "
+                f"offset={offset_text}, lock={summary.lock_retention_percent:.1f}%"
+            )
+    paths = export_stress_report(
+        scenario.name,
+        "improved",
+        args.frames,
+        cells,
+        args.output_dir,
+    )
+    safe = sum(cell.passed for cell in cells)
+    print(f"Robustness score: {100.0 * safe / len(cells):.1f}% ({safe}/{len(cells)} cells)")
+    print(f"Stress heatmap: {paths['html']}")
+    print(f"Stress evidence: {paths['json']}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "train-ai":
@@ -474,6 +563,8 @@ def main(argv: list[str] | None = None) -> int:
         return _benchmark(args, scenario)
     elif args.command == "compare":
         return _compare(args, scenario)
+    elif args.command == "stress-test":
+        return _stress_test(args, scenario)
     else:
         if args.frames <= 0:
             print("--frames must be positive", file=sys.stderr)

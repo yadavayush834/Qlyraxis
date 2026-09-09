@@ -1,0 +1,106 @@
+{
+  "scenario": "clear_straight",
+  "profile": "improved",
+  "frames_per_cell": 180,
+  "criteria": {
+    "acquisition_time_s_max": 2.0,
+    "mean_camera_offset_px_max": 10.0,
+    "strict_lock_percent_min": 80.0,
+    "processing_fps_min": 20.0
+  },
+  "safe_cells": 2,
+  "total_cells": 9,
+  "robustness_score_percent": 22.22222222222222,
+  "cells": [
+    {
+      "noise_sigma": 0.0,
+      "jitter_px_frame": 0.0,
+      "acquisition_time_s": 0.06666666666666667,
+      "mean_camera_offset_px": 3.8568902419144817,
+      "p95_camera_offset_px": 7.929257300048692,
+      "strict_lock_percent": 97.75280898876404,
+      "processing_fps": 53.125068771310985,
+      "passed": true
+    },
+    {
+      "noise_sigma": 0.0,
+      "jitter_px_frame": 10.0,
+      "acquisition_time_s": 0.06666666666666667,
+      "mean_camera_offset_px": 9.105880788575975,
+      "p95_camera_offset_px": 17.344499997229462,
+      "strict_lock_percent": 64.04494382022472,
+      "processing_fps": 52.417710977505614,
+      "passed": false
+    },
+    {
+      "noise_sigma": 0.0,
+      "jitter_px_frame": 20.0,
+      "acquisition_time_s": 0.06666666666666667,
+      "mean_camera_offset_px": 17.25726821957556,
+      "p95_camera_offset_px": 30.792681549141733,
+      "strict_lock_percent": 17.97752808988764,
+      "processing_fps": 50.546746039298185,
+      "passed": false
+    },
+    {
+      "noise_sigma": 8.0,
+      "jitter_px_frame": 0.0,
+      "acquisition_time_s": 0.06666666666666667,
+      "mean_camera_offset_px": 3.901203533481049,
+      "p95_camera_offset_px": 7.634285152193475,
+      "strict_lock_percent": 97.75280898876404,
+      "processing_fps": 31.12125356218325,
+      "passed": true
+    },
+    {
+      "noise_sigma": 8.0,
+      "jitter_px_frame": 10.0,
+      "acquisition_time_s": 0.06666666666666667,
+      "mean_camera_offset_px": 9.136830448364526,
+      "p95_camera_offset_px": 17.055088190623163,
+      "strict_lock_percent": 64.04494382022472,
+      "processing_fps": 21.576320616365273,
+      "passed": false
+    },
+    {
+      "noise_sigma": 8.0,
+      "jitter_px_frame": 20.0,
+      "acquisition_time_s": 0.06666666666666667,
+      "mean_camera_offset_px": 17.269776333777006,
+      "p95_camera_offset_px": 31.111238610982614,
+      "strict_lock_percent": 16.853932584269664,
+      "processing_fps": 22.181586634476282,
+      "passed": false
+    },
+    {
+      "noise_sigma": 16.0,
+      "jitter_px_frame": 0.0,
+      "acquisition_time_s": 0.06666666666666667,
+      "mean_camera_offset_px": 3.6624038671196533,
+      "p95_camera_offset_px": 6.834553105788923,
+      "strict_lock_percent": 97.75280898876404,
+      "processing_fps": 10.981212616506996,
+      "passed": false
+    },
+    {
+      "noise_sigma": 16.0,
+      "jitter_px_frame": 10.0,
+      "acquisition_time_s": 0.06666666666666667,
+      "mean_camera_offset_px": 9.039365970793625,
+      "p95_camera_offset_px": 17.344499997229462,
+      "strict_lock_percent": 65.1685393258427,
+      "processing_fps": 14.894958464057767,
+      "passed": false
+    },
+    {
+      "noise_sigma": 16.0,
+      "jitter_px_frame": 20.0,
+      "acquisition_time_s": 0.06666666666666667,
+      "mean_camera_offset_px": 17.307069351245353,
+      "p95_camera_offset_px": 30.967257331050607,
+      "strict_lock_percent": 17.97752808988764,
+      "processing_fps": 10.672280329753084,
+      "passed": false
+    }
+  ]
+}

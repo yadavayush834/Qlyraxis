@@ -85,3 +85,14 @@ Status: complete
 
 Exit criteria: a clean computer can run the packaged application and reproduce
 the submitted benchmark report.
+
+## Phase 8 — Automated robustness envelope
+
+- [x] Deterministic noise-versus-jitter disturbance sweep
+- [x] Safe-operating-envelope pass/fail classification
+- [x] Portable mean-offset and strict-lock heatmaps
+- [x] Machine-readable per-cell evidence for judge verification
+
+This phase turns the simulator into a lightweight FSOC digital-twin
+certification tool: it discovers failure boundaries automatically instead of
+showing only hand-selected successful runs.

@@ -48,6 +48,7 @@ qlyraxis record configs/scenarios/fog_figure_eight.json work/fog.mp4 --frames 24
 qlyraxis analyze work/fog.mp4 --model models/beacon_verifier.onnx
 qlyraxis benchmark configs/scenarios/clear_straight.json --output-dir reports/clear
 qlyraxis compare configs/scenarios/jitter_random.json --frames 600 --output-dir reports/jitter-comparison
+qlyraxis stress-test configs/scenarios/clear_straight.json --frames 180 --output-dir reports/robustness
 qlyraxis gui
 python -m unittest discover -s tests -v
 ```
@@ -93,6 +94,16 @@ the optical axis and is the primary tracking metric. **Beacon confidence** is a
 detector/verifier score, not a lock percentage. **Strict lock retention** counts
 only real detections in `TRACK` whose camera offset is at most 10 pixels; predicted
 `COAST` frames do not count as locked.
+
+## Phase 8: Robustness Lab
+
+`stress-test` automatically sweeps configurable sensor-noise and camera-jitter
+levels against the same deterministic target. It exports JSON evidence and two
+judge-friendly heatmaps for mean camera offset and strict lock retention. A cell
+is inside the safe operating envelope only when acquisition is at most 2 s, mean
+camera offset is at most 10 px, strict lock is at least 80%, and processing
+remains at least 20 FPS. Override the grid with `--noise-levels 0,4,8` and
+`--jitter-levels 0,5,10`.
 
 See `docs/architecture.md`, `docs/project-plan.md`, and
 `docs/phase7-delivery.md` for the design, local operation, and release workflow.

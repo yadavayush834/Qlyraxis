@@ -41,6 +41,14 @@ qlyraxis compare configs/scenarios/noisy_circle.json --frames 600 \
 The comparison uses the same scenario and seed for both profiles, then overlays
 their camera-offset curves in one HTML report.
 
+Map the operating envelope across a disturbance grid with:
+
+```bash
+qlyraxis stress-test configs/scenarios/clear_straight.json --frames 180 \
+  --noise-levels 0,8,16 --jitter-levels 0,5,10,20 \
+  --output-dir reports/robustness
+```
+
 ## Run the automated suite
 
 ```bash

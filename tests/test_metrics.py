@@ -4,7 +4,12 @@ import unittest
 from pathlib import Path
 
 from qlyraxis.contracts import CameraCommand, Detection, TrackEstimate, TrackingState
-from qlyraxis.metrics import PerformanceRecorder, export_profile_comparison
+from qlyraxis.metrics import (
+    PerformanceRecorder,
+    StressCell,
+    export_profile_comparison,
+    export_stress_report,
+)
 
 
 def detection(x: float, y: float) -> Detection:
@@ -131,6 +136,23 @@ class PerformanceRecorderTests(unittest.TestCase):
         self.assertIn("Baseline", report)
         self.assertIn("Improved", report)
         self.assertIn("<svg", report)
+
+    def test_stress_report_exports_safe_envelope_heatmaps(self) -> None:
+        cells = (
+            StressCell(0, 0, 0.1, 2, 4, 98, 60, True),
+            StressCell(0, 10, 0.2, 12, 20, 45, 55, False),
+            StressCell(8, 0, 0.3, 5, 9, 85, 40, True),
+            StressCell(8, 10, 0.4, 18, 30, 20, 35, False),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            paths = export_stress_report("stress", "improved", 90, cells, directory)
+            payload = json.loads(paths["json"].read_text())
+            report = paths["html"].read_text()
+        self.assertEqual(payload["safe_cells"], 2)
+        self.assertEqual(payload["robustness_score_percent"], 50.0)
+        self.assertIn("Mean camera offset", report)
+        self.assertIn("Strict lock retention", report)
+        self.assertGreaterEqual(report.count('class="heat"'), 2)
 
     def test_non_increasing_timestamp_is_rejected(self) -> None:
         recorder = PerformanceRecorder("timestamps", (640, 480))
